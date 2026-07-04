@@ -1,58 +1,12 @@
-const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
-const STORAGE_KEY = "open-shelf-posts";
-const ACCOUNT_KEY = "open-shelf-account";
+const SUPABASE_URL = "https://fabucdcrmpdvyukflggx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aPWFDpPUCanreVvU_y9mdg_K3_sH-AV";
 const OWNER_EMAIL = "gradydflem@gmail.com";
-const OWNER_PASSWORD_KEY = "open-shelf-owner-password-hash";
+const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
 
-const starterPosts = [
-  {
-    id: crypto.randomUUID(),
-    title: "A Table Near the Window",
-    author: "Grady",
-    submittedBy: OWNER_EMAIL,
-    status: "published",
-    category: "Essays",
-    date: "2026-07-03T10:00:00.000Z",
-    body:
-      "There is a particular kind of morning light that turns a room into a promise. It lands first on the table, then on the cup, then on the open page waiting without complaint.\n\nI have started to think of writing as a way of keeping appointments with that light. Not every sentence needs to become permanent. Some only need to prove that we were here, paying attention."
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "Borrowed Moon",
-    author: "Maya Chen",
-    submittedBy: "maya@example.com",
-    status: "published",
-    category: "Memoirs",
-    date: "2026-07-02T18:30:00.000Z",
-    body:
-      "I carried the moon home\nin the sleeve of my coat,\nsmall enough to misplace,\nbright enough to forgive me.\n\nBy morning it had become\njust a button, just a coin,\njust another round thing\nI wanted to believe in."
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "The Mapmaker's Daughter",
-    author: "Iris Vale",
-    submittedBy: "iris@example.com",
-    status: "published",
-    category: "Fiction",
-    date: "2026-07-01T15:15:00.000Z",
-    body:
-      "Her father drew coastlines for places he had never touched. He gave each harbor a name, each mountain a shadow, each river a patient blue path to the sea.\n\nWhen he disappeared, he left behind one unfinished map. At the center was a city no one in town recognized, marked with a single instruction: begin here."
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "Notebook, July",
-    author: "Grady",
-    submittedBy: OWNER_EMAIL,
-    status: "published",
-    category: "Notes",
-    date: "2026-07-03T08:45:00.000Z",
-    body:
-      "Things worth keeping nearby: a pen that does not skip, a sentence that surprises me, names of friends who answer late but honestly, the smell of tomato leaves, and a question that refuses to become small."
-  }
-];
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let posts = loadPosts();
-let account = loadAccount();
+let posts = [];
+let account = null;
 let activeCategory = "All";
 let editingPostId = null;
 
@@ -60,8 +14,6 @@ const accountForm = document.querySelector("#accountForm");
 const accountNameInput = document.querySelector("#accountNameInput");
 const accountEmailInput = document.querySelector("#accountEmailInput");
 const accountPasswordInput = document.querySelector("#accountPasswordInput");
-const ownerPasswordField = document.querySelector("#ownerPasswordField");
-const ownerPasswordCreateInput = document.querySelector("#ownerPasswordCreateInput");
 const accountMessage = document.querySelector("#accountMessage");
 const accountButton = document.querySelector("#accountButton");
 const accountCard = document.querySelector("#accountCard");
@@ -102,80 +54,16 @@ const ownerOnlyControls = [
   resetButton
 ];
 
-function loadPosts() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return normalizePosts(starterPosts);
-
-  try {
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? normalizePosts(parsed) : normalizePosts(starterPosts);
-  } catch {
-    return normalizePosts(starterPosts);
-  }
-}
-
-function normalizePosts(postList) {
-  return postList.map((post) => ({
-    ...post,
-    category: post.category === "Poems" ? "Memoirs" : post.category,
-    status: post.status || "published",
-    submittedBy: post.submittedBy || (post.credit === "Mine" ? OWNER_EMAIL : "legacy-submission@example.com")
-  }));
-}
-
-function loadAccount() {
-  const saved = localStorage.getItem(ACCOUNT_KEY);
-  if (!saved) return null;
-
-  try {
-    const parsed = JSON.parse(saved);
-    if (parsed?.email?.toLowerCase() === OWNER_EMAIL && !parsed.ownerAuthenticated) return null;
-    return parsed?.email ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function savePosts() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
-}
-
-function saveAccount() {
-  if (account) {
-    localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
-    return;
-  }
-  localStorage.removeItem(ACCOUNT_KEY);
-}
-
 function isOwner() {
-  return account?.email?.toLowerCase() === OWNER_EMAIL && account.ownerAuthenticated === true;
-}
-
-function hasOwnerPassword() {
-  return Boolean(localStorage.getItem(OWNER_PASSWORD_KEY));
-}
-
-async function hashPassword(password) {
-  if (!crypto.subtle) {
-    let hash = 5381;
-    for (const char of password) {
-      hash = ((hash << 5) + hash) ^ char.charCodeAt(0);
-    }
-    return `local-${hash >>> 0}`;
-  }
-
-  const data = new TextEncoder().encode(password);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return account?.email?.toLowerCase() === OWNER_EMAIL;
 }
 
 function isSignedIn() {
-  return Boolean(account?.email);
+  return Boolean(account?.id);
 }
 
 function ownsPost(post) {
-  return isSignedIn() && post.submittedBy?.toLowerCase() === account.email.toLowerCase();
+  return isSignedIn() && post.submitted_by === account.id;
 }
 
 function canEditPost(post) {
@@ -204,7 +92,7 @@ function slugCategory(category) {
 }
 
 function displayCredit(post) {
-  return post.submittedBy?.toLowerCase() === OWNER_EMAIL ? "Owner" : "Contributor";
+  return post.submitted_by === account?.id && isOwner() ? "Owner" : "Contributor";
 }
 
 function excerpt(text) {
@@ -234,9 +122,7 @@ function formatReaderBody(text) {
 }
 
 function getShareUrl() {
-  if (location.protocol === "file:") {
-    return "Publish this site to get a public link.";
-  }
+  if (location.protocol === "file:") return "Publish this site to get a public link.";
   return location.origin + location.pathname;
 }
 
@@ -266,6 +152,34 @@ async function shareSite() {
   window.location.href = `sms:?&body=${encodeURIComponent(shareText)}`;
 }
 
+function normalizePost(post) {
+  return {
+    ...post,
+    date: post.created_at || new Date().toISOString()
+  };
+}
+
+async function loadAccount() {
+  const { data } = await db.auth.getSession();
+  account = data.session?.user || null;
+}
+
+async function loadPosts() {
+  let query = db
+    .from("posts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const { data, error } = await query;
+  if (error) {
+    postGrid.innerHTML = `<div class="empty-state">Could not load writing yet. ${escapeHTML(error.message)}</div>`;
+    posts = [];
+    return;
+  }
+
+  posts = (data || []).map(normalizePost);
+}
+
 function getVisiblePosts() {
   const term = searchInput.value.trim().toLowerCase();
   const filtered = posts.filter((post) => {
@@ -276,30 +190,23 @@ function getVisiblePosts() {
   });
 
   return filtered.sort((a, b) => {
-    if (sortSelect.value === "oldest") return new Date(a.date) - new Date(b.date);
+    if (sortSelect.value === "oldest") return new Date(a.created_at) - new Date(b.created_at);
     if (sortSelect.value === "title") return a.title.localeCompare(b.title);
-    return new Date(b.date) - new Date(a.date);
+    return new Date(b.created_at) - new Date(a.created_at);
   });
 }
 
 function renderAccount() {
   if (isSignedIn()) {
+    const displayName = account.user_metadata?.display_name || account.email;
     accountForm.classList.add("hidden");
     accountCard.classList.remove("hidden");
     accountRole.textContent = roleLabel();
-    accountName.textContent = `${account.name || account.email} · ${account.email}`;
+    accountName.textContent = `${displayName} · ${account.email}`;
   } else {
     accountForm.classList.remove("hidden");
     accountCard.classList.add("hidden");
   }
-  renderOwnerPasswordField();
-}
-
-function renderOwnerPasswordField() {
-  const email = accountEmailInput.value.trim().toLowerCase();
-  const shouldCreateOwnerPassword = email === OWNER_EMAIL && !hasOwnerPassword();
-  ownerPasswordField.classList.toggle("hidden", !shouldCreateOwnerPassword);
-  accountButton.textContent = shouldCreateOwnerPassword ? "Create owner login" : "Sign in";
 }
 
 function renderAccess() {
@@ -356,7 +263,7 @@ function renderPosts() {
   activeCategoryLabel.textContent = activeCategory === "All" ? "All writing" : `${visiblePosts.length} pieces`;
 
   if (!visiblePosts.length) {
-    postGrid.innerHTML = `<div class="empty-state">No pieces found.</div>`;
+    postGrid.innerHTML = `<div class="empty-state">No published pieces yet.</div>`;
     return;
   }
 
@@ -373,7 +280,7 @@ function renderPosts() {
 
     pill.textContent = post.category;
     pill.classList.add(slugCategory(post.category));
-    date.textContent = formatDate(post.date);
+    date.textContent = formatDate(post.created_at);
     title.textContent = post.title;
     copy.textContent = excerpt(post.body);
     byline.textContent = `By ${post.author} · ${displayCredit(post)}`;
@@ -391,7 +298,7 @@ function getLibraryPosts() {
 function renderLibrary() {
   if (!isSignedIn()) return;
 
-  const sorted = [...getLibraryPosts()].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const sorted = [...getLibraryPosts()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   libraryList.innerHTML = "";
 
   if (!sorted.length) {
@@ -410,8 +317,7 @@ function renderLibrary() {
     item.innerHTML = `
       <div>
         <strong>${escapeHTML(post.title)}</strong>
-        <span>${escapeHTML(post.author)} · ${escapeHTML(post.category)} · ${formatDate(post.date)}</span>
-        <span>Submitted by ${escapeHTML(post.submittedBy || "unknown")}</span>
+        <span>${escapeHTML(post.author)} · ${escapeHTML(post.category)} · ${formatDate(post.created_at)}</span>
         <em class="status-badge ${post.status === "pending" ? "pending" : "published"}">${statusLabel}</em>
       </div>
       <div class="mini-actions">
@@ -424,19 +330,8 @@ function renderLibrary() {
 
     item.querySelector('[data-action="read"]').addEventListener("click", () => openPost(post.id));
     item.querySelector('[data-action="edit"]')?.addEventListener("click", () => startEditingPost(post.id));
-    item.querySelector('[data-action="approve"]')?.addEventListener("click", () => {
-      posts = posts.map((itemPost) => itemPost.id === post.id ? { ...itemPost, status: "published" } : itemPost);
-      savePosts();
-      render();
-      openPost(post.id);
-    });
-    item.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
-      if (!canDeletePost(post)) return;
-      posts = posts.filter((itemPost) => itemPost.id !== post.id);
-      savePosts();
-      if (editingPostId === post.id) clearPostForm();
-      render();
-    });
+    item.querySelector('[data-action="approve"]')?.addEventListener("click", () => approvePost(post.id));
+    item.querySelector('[data-action="delete"]')?.addEventListener("click", () => deletePost(post));
     libraryList.append(item);
   });
 }
@@ -451,7 +346,7 @@ function openPost(id) {
     <div class="reader-meta">
       <span>By ${escapeHTML(post.author)}</span>
       <span>${displayCredit(post)}</span>
-      <span>${formatDate(post.date)}</span>
+      <span>${formatDate(post.created_at)}</span>
     </div>
     <div class="reader-body">${formatReaderBody(post.body)}</div>
   `;
@@ -480,6 +375,35 @@ function startEditingPost(id) {
   document.querySelector("#submit").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+async function approvePost(id) {
+  if (!isOwner()) return;
+  const { error } = await db
+    .from("posts")
+    .update({ status: "published", updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await refresh();
+  openPost(id);
+}
+
+async function deletePost(post) {
+  if (!canDeletePost(post)) return;
+  const { error } = await db.from("posts").delete().eq("id", post.id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  if (editingPostId === post.id) clearPostForm();
+  await refresh();
+}
+
 function render() {
   renderAccount();
   renderAccess();
@@ -488,115 +412,125 @@ function render() {
   renderLibrary();
 }
 
+async function refresh() {
+  await loadAccount();
+  await loadPosts();
+  render();
+}
+
+async function signInOrCreateAccount({ name, email, password }) {
+  let result = await db.auth.signInWithPassword({ email, password });
+
+  if (result.error && result.error.message.toLowerCase().includes("invalid")) {
+    result = await db.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name || email.split("@")[0]
+        }
+      }
+    });
+  }
+
+  if (result.error) throw result.error;
+  if (!result.data.session) {
+    accountMessage.textContent = "Account created. Check your email to confirm, then sign in.";
+  }
+}
+
 accountForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const email = accountEmailInput.value.trim().toLowerCase();
   const password = accountPasswordInput.value;
-  if (!email) return;
+  const name = accountNameInput.value.trim();
+  if (!email || !password) return;
 
   accountMessage.textContent = "";
+  accountButton.disabled = true;
 
-  if (email === OWNER_EMAIL) {
-    if (hasOwnerPassword()) {
-      const savedHash = localStorage.getItem(OWNER_PASSWORD_KEY);
-      const attemptedHash = await hashPassword(password);
-      if (!password || attemptedHash !== savedHash) {
-        accountMessage.textContent = "That owner password does not match.";
-        return;
-      }
-    } else {
-      const newOwnerPassword = ownerPasswordCreateInput.value.trim();
-      if (newOwnerPassword.length < 8) {
-        accountMessage.textContent = "Create an owner password with at least 8 characters.";
-        return;
-      }
-      localStorage.setItem(OWNER_PASSWORD_KEY, await hashPassword(newOwnerPassword));
-    }
+  try {
+    await signInOrCreateAccount({ name, email, password });
+    accountForm.reset();
+    await refresh();
+  } catch (error) {
+    accountMessage.textContent = error.message;
+  } finally {
+    accountButton.disabled = false;
   }
-
-  account = {
-    name: accountNameInput.value.trim() || email.split("@")[0],
-    email,
-    ownerAuthenticated: email === OWNER_EMAIL
-  };
-  saveAccount();
-  accountForm.reset();
-  accountMessage.textContent = "";
-  render();
 });
 
-accountEmailInput.addEventListener("input", renderOwnerPasswordField);
 shareButton.addEventListener("click", shareSite);
 
-signOutButton.addEventListener("click", () => {
+signOutButton.addEventListener("click", async () => {
   editingPostId = null;
+  await db.auth.signOut();
   account = null;
-  saveAccount();
   accountMessage.textContent = "";
   postForm.reset();
   fileName.textContent = "Choose file";
-  render();
+  await refresh();
 });
 
-postForm.addEventListener("submit", (event) => {
+postForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isSignedIn()) return;
+
+  const payload = {
+    title: titleInput.value.trim(),
+    author: authorInput.value.trim(),
+    category: categoryInput.value,
+    body: bodyInput.value.trim(),
+    status: isOwner() ? "published" : "pending",
+    updated_at: new Date().toISOString()
+  };
+
+  if (!payload.title || !payload.author || !payload.body) return;
 
   if (editingPostId) {
     const existingPost = posts.find((post) => post.id === editingPostId);
     if (!existingPost || !canEditPost(existingPost)) return;
 
-    const updatedPost = {
-      ...existingPost,
-      title: titleInput.value.trim(),
-      author: authorInput.value.trim(),
-      category: categoryInput.value,
-      body: bodyInput.value.trim(),
-      status: isOwner() ? "published" : "pending",
-      editedAt: new Date().toISOString()
-    };
-
-    if (!updatedPost.title || !updatedPost.author || !updatedPost.body) return;
-
-    posts = posts.map((post) => post.id === editingPostId ? updatedPost : post);
-    savePosts();
-    clearPostForm();
-    activeCategory = updatedPost.status === "published" ? updatedPost.category : "All";
-    render();
-    if (updatedPost.status === "published") {
-      openPost(updatedPost.id);
-    } else {
-      document.querySelector("#library").scrollIntoView({ behavior: "smooth", block: "start" });
+    const { error } = await db.from("posts").update(payload).eq("id", editingPostId);
+    if (error) {
+      alert(error.message);
+      return;
     }
+
+    const updatedId = editingPostId;
+    clearPostForm();
+    activeCategory = payload.status === "published" ? payload.category : "All";
+    await refresh();
+    if (payload.status === "published") openPost(updatedId);
+    else document.querySelector("#library").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
-  const newPost = {
-    id: crypto.randomUUID(),
-    title: titleInput.value.trim(),
-    author: authorInput.value.trim(),
-    submittedBy: account.email,
-    status: isOwner() ? "published" : "pending",
-    category: categoryInput.value,
-    date: new Date().toISOString(),
-    body: bodyInput.value.trim()
-  };
+  const { data, error } = await db
+    .from("posts")
+    .insert({
+      ...payload,
+      submitted_by: account.id
+    })
+    .select()
+    .single();
 
-  if (!newPost.title || !newPost.author || !newPost.body) return;
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-  posts = [newPost, ...posts];
-  savePosts();
   clearPostForm();
-  activeCategory = newPost.status === "published" ? newPost.category : "All";
-  render();
+  activeCategory = data.status === "published" ? data.category : "All";
+  await refresh();
 
-  if (newPost.status === "pending") {
+  if (data.status === "pending") {
     alert("Saved as pending. The owner will see it in the in-app Library.");
     document.querySelector("#read").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
-  openPost(newPost.id);
+  openPost(data.id);
 });
 
 fileInput.addEventListener("change", async () => {
@@ -636,33 +570,32 @@ importInput.addEventListener("change", async () => {
     const incoming = JSON.parse(await file.text());
     if (!Array.isArray(incoming)) throw new Error("Library import must be an array.");
 
-    posts = incoming.map((post) => ({
-      ...post,
-      id: post.id || crypto.randomUUID(),
+    const rows = incoming.map((post) => ({
       title: String(post.title || "Untitled"),
       author: String(post.author || "Unknown"),
-      submittedBy: post.submittedBy || "imported@example.com",
-      category: post.category === "Poems" ? "Memoirs" : CATEGORIES.includes(post.category) ? post.category : CATEGORIES[0],
+      category: CATEGORIES.includes(post.category) ? post.category : CATEGORIES[0],
       status: post.status === "pending" ? "pending" : "published",
-      date: post.date || new Date().toISOString(),
-      body: String(post.body || "")
+      body: String(post.body || ""),
+      submitted_by: account.id
     }));
-    savePosts();
+
+    const { error } = await db.from("posts").insert(rows);
+    if (error) throw error;
     activeCategory = "All";
-    render();
-  } catch {
-    alert("That library file could not be imported.");
+    await refresh();
+  } catch (error) {
+    alert(error.message || "That library file could not be imported.");
   } finally {
     importInput.value = "";
   }
 });
 
-resetButton.addEventListener("click", () => {
-  if (!isOwner()) return;
-  posts = normalizePosts(starterPosts);
-  savePosts();
-  activeCategory = "All";
-  render();
+resetButton.addEventListener("click", async () => {
+  alert("Reset is disabled for the shared database. Delete individual posts from the Library instead.");
 });
 
-render();
+db.auth.onAuthStateChange(async () => {
+  await refresh();
+});
+
+refresh();

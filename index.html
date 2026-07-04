@@ -32,10 +32,6 @@
           <span>Password</span>
           <input id="accountPasswordInput" type="password" placeholder="Password" />
         </label>
-        <label class="owner-password-field hidden" id="ownerPasswordField">
-          <span>Create owner password</span>
-          <input id="ownerPasswordCreateInput" type="password" placeholder="Only the first time" />
-        </label>
         <button class="button secondary" id="accountButton" type="submit">Sign in</button>
         <p class="account-message" id="accountMessage"></p>
       </form>
@@ -178,6 +174,7 @@
       </article>
     </template>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>
