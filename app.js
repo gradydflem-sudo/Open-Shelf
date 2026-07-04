@@ -10,7 +10,7 @@ let posts = [];
 let account = null;
 let activeCategory = "All";
 let editingPostId = null;
-let authCallbackStarted = false;
+let refreshStarted = false;
 
 const accountForm = document.querySelector("#accountForm");
 const accountNameInput = document.querySelector("#accountNameInput");
@@ -430,6 +430,9 @@ function render() {
 }
 
 async function refresh() {
+  if (refreshStarted) return;
+  refreshStarted = true;
+
   try {
     await loadAccount();
     await loadPosts();
@@ -438,6 +441,7 @@ async function refresh() {
     posts = [];
   } finally {
     render();
+    refreshStarted = false;
   }
 }
 
@@ -626,11 +630,18 @@ resetButton.addEventListener("click", async () => {
 });
 
 if (db) {
-  db.auth.onAuthStateChange(async () => {
-    if (authCallbackStarted) return;
-    authCallbackStarted = true;
-    await refresh();
-    authCallbackStarted = false;
+  db.auth.onAuthStateChange((_event, session) => {
+    account = session?.user || null;
+    window.setTimeout(async () => {
+      try {
+        await loadPosts();
+      } catch (error) {
+        accountMessage.textContent = error.message || "The backend could not be reached.";
+        posts = [];
+      } finally {
+        render();
+      }
+    }, 0);
   });
 }
 
