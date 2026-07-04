@@ -4,12 +4,13 @@ const SITE_URL = "https://gradydflem-sudo.github.io/Open-Shelf/";
 const OWNER_EMAIL = "gradydflem@gmail.com";
 const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
 
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 let posts = [];
 let account = null;
 let activeCategory = "All";
 let editingPostId = null;
+let authCallbackStarted = false;
 
 const accountForm = document.querySelector("#accountForm");
 const accountNameInput = document.querySelector("#accountNameInput");
@@ -161,11 +162,23 @@ function normalizePost(post) {
 }
 
 async function loadAccount() {
-  const { data } = await db.auth.getSession();
+  if (!db) {
+    account = null;
+    return;
+  }
+
+  const { data, error } = await db.auth.getSession();
+  if (error) throw error;
   account = data.session?.user || null;
 }
 
 async function loadPosts() {
+  if (!db) {
+    posts = [];
+    postGrid.innerHTML = `<div class="empty-state">Supabase did not load. Refresh the page, then try again.</div>`;
+    return;
+  }
+
   let query = db
     .from("posts")
     .select("*")
@@ -297,7 +310,10 @@ function getLibraryPosts() {
 }
 
 function renderLibrary() {
-  if (!isSignedIn()) return;
+  if (!isSignedIn()) {
+    libraryList.innerHTML = "";
+    return;
+  }
 
   const sorted = [...getLibraryPosts()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   libraryList.innerHTML = "";
@@ -414,12 +430,20 @@ function render() {
 }
 
 async function refresh() {
-  await loadAccount();
-  await loadPosts();
-  render();
+  try {
+    await loadAccount();
+    await loadPosts();
+  } catch (error) {
+    accountMessage.textContent = error.message || "The backend could not be reached.";
+    posts = [];
+  } finally {
+    render();
+  }
 }
 
 async function signInOrCreateAccount({ name, email, password }) {
+  if (!db) throw new Error("Supabase did not load. Refresh the page, then try again.");
+
   let result = await db.auth.signInWithPassword({ email, password });
 
   if (result.error && result.error.message.toLowerCase().includes("invalid")) {
@@ -466,7 +490,7 @@ shareButton.addEventListener("click", shareSite);
 
 signOutButton.addEventListener("click", async () => {
   editingPostId = null;
-  await db.auth.signOut();
+  if (db) await db.auth.signOut();
   account = null;
   accountMessage.textContent = "";
   postForm.reset();
@@ -476,6 +500,10 @@ signOutButton.addEventListener("click", async () => {
 
 postForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!db) {
+    alert("Supabase did not load. Refresh the page, then try again.");
+    return;
+  }
   if (!isSignedIn()) return;
 
   const payload = {
@@ -564,6 +592,7 @@ exportButton.addEventListener("click", () => {
 });
 
 importInput.addEventListener("change", async () => {
+  if (!db) return;
   if (!isOwner()) return;
   const file = importInput.files?.[0];
   if (!file) return;
@@ -596,8 +625,13 @@ resetButton.addEventListener("click", async () => {
   alert("Reset is disabled for the shared database. Delete individual posts from the Library instead.");
 });
 
-db.auth.onAuthStateChange(async () => {
-  await refresh();
-});
+if (db) {
+  db.auth.onAuthStateChange(async () => {
+    if (authCallbackStarted) return;
+    authCallbackStarted = true;
+    await refresh();
+    authCallbackStarted = false;
+  });
+}
 
 refresh();
