@@ -124,18 +124,13 @@ function formatReaderBody(text) {
 }
 
 function getShareUrl() {
-  if (location.protocol === "file:") return "Publish this site to get a public link.";
+  if (location.protocol === "file:") return SITE_URL;
   return location.origin + location.pathname;
 }
 
 async function shareSite() {
   const shareUrl = getShareUrl();
   const shareText = `Read Open Shelf: ${shareUrl}`;
-
-  if (location.protocol === "file:") {
-    shareStatus.textContent = "Texting will work once the site has a public web link.";
-    return;
-  }
 
   if (navigator.share) {
     try {
