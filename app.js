@@ -53,11 +53,57 @@ const exportButton = document.querySelector("#exportButton");
 const importInput = document.querySelector("#importInput");
 const resetButton = document.querySelector("#resetButton");
 const clearForm = document.querySelector("#clearForm");
+const practiceMenu = document.querySelector("#practiceMenu");
+const practiceWorkbench = document.querySelector("#practiceWorkbench");
+const practiceCards = document.querySelectorAll("[data-practice-mode]");
+const practiceBackButton = document.querySelector("#practiceBackButton");
+const practiceDifficulty = document.querySelector("#practiceDifficulty");
+const practiceTopic = document.querySelector("#practiceTopic");
+const practiceModeLabel = document.querySelector("#practiceModeLabel");
+const practiceTitle = document.querySelector("#practiceTitle");
+const practicePrompt = document.querySelector("#practicePrompt");
+const characterTrack = document.querySelector("#characterTrack");
+const practiceTime = document.querySelector("#practiceTime");
+const practiceWpm = document.querySelector("#practiceWpm");
+const practiceAccuracy = document.querySelector("#practiceAccuracy");
+const practiceMistakes = document.querySelector("#practiceMistakes");
+const practiceInputLabel = document.querySelector("#practiceInputLabel");
+const practiceInput = document.querySelector("#practiceInput");
+const practiceFeedback = document.querySelector("#practiceFeedback");
+const practiceBest = document.querySelector("#practiceBest");
+const practiceStartButton = document.querySelector("#practiceStartButton");
+const practiceNextButton = document.querySelector("#practiceNextButton");
+const practiceRetryButton = document.querySelector("#practiceRetryButton");
 const ownerOnlyControls = [
   exportButton,
   importInput.closest(".import-button"),
   resetButton
 ];
+const practiceData = window.CommonPagesPracticeData || {
+  spanishPrompts: [],
+  typingPassages: []
+};
+const practiceModeCopy = {
+  "spanish-retype": {
+    label: "Spanish Retype",
+    title: "Type the Spanish phrase exactly.",
+    inputLabel: "Retype the phrase"
+  },
+  typing: {
+    label: "Typing Practice",
+    title: "Type the passage exactly.",
+    inputLabel: "Type the passage"
+  }
+};
+let practiceState = {
+  mode: "spanish-retype",
+  item: null,
+  target: "",
+  startedAt: null,
+  elapsed: 0,
+  finished: false,
+  timerId: null
+};
 
 function isOwner() {
   return account?.email?.toLowerCase() === OWNER_EMAIL;
@@ -423,6 +469,243 @@ async function offerSubstackHandoff(post) {
   }
 }
 
+function getPracticeItems() {
+  const difficulty = practiceDifficulty.value;
+  const topic = practiceTopic.value;
+  const items = practiceState.mode === "typing"
+    ? practiceData.typingPassages
+    : practiceData.spanishPrompts.filter((item) => item.modes.includes("retype"));
+
+  return items.filter((item) => {
+    return item.difficulty === difficulty && (topic === "all" || item.category === topic);
+  });
+}
+
+function getPracticeTarget(item) {
+  if (!item) return "";
+  return practiceState.mode === "typing" ? item.text : item.spanish;
+}
+
+function getPracticeBestKey() {
+  return `commonPagesPracticeBest:${practiceState.mode}:${practiceDifficulty.value}`;
+}
+
+function loadPracticeBest() {
+  try {
+    return JSON.parse(localStorage.getItem(getPracticeBestKey()));
+  } catch {
+    return null;
+  }
+}
+
+function savePracticeBest(result) {
+  const previous = loadPracticeBest();
+  if (previous && previous.wpm >= result.wpm) return previous;
+  localStorage.setItem(getPracticeBestKey(), JSON.stringify(result));
+  return result;
+}
+
+function renderPracticeBest() {
+  const best = loadPracticeBest();
+  if (!best) {
+    practiceBest.textContent = "Best score: none yet.";
+    return;
+  }
+
+  practiceBest.textContent = `Best score: ${best.wpm} WPM · ${best.accuracy}% accuracy · ${best.time}s`;
+}
+
+function renderPracticeTopics() {
+  const currentTopic = practiceTopic.value || "all";
+  const difficulty = practiceDifficulty.value;
+  const items = practiceState.mode === "typing"
+    ? practiceData.typingPassages
+    : practiceData.spanishPrompts.filter((item) => item.modes.includes("retype"));
+  const topics = [...new Set(items
+    .filter((item) => item.difficulty === difficulty)
+    .map((item) => item.category))]
+    .sort((a, b) => a.localeCompare(b));
+
+  practiceTopic.innerHTML = [
+    '<option value="all">All topics</option>',
+    ...topics.map((topic) => `<option value="${escapeHTML(topic)}">${escapeHTML(topic)}</option>`)
+  ].join("");
+  practiceTopic.value = topics.includes(currentTopic) ? currentTopic : "all";
+}
+
+function stopPracticeTimer() {
+  if (!practiceState.timerId) return;
+  clearInterval(practiceState.timerId);
+  practiceState.timerId = null;
+}
+
+function resetPracticeTimer() {
+  stopPracticeTimer();
+  practiceState.startedAt = null;
+  practiceState.elapsed = 0;
+  practiceState.finished = false;
+}
+
+function startPracticeTimer() {
+  if (practiceState.startedAt || practiceState.finished) return;
+  practiceState.startedAt = Date.now();
+  practiceState.timerId = window.setInterval(renderPracticeProgress, 100);
+}
+
+function getPracticeElapsed() {
+  if (!practiceState.startedAt) return practiceState.elapsed;
+  if (practiceState.finished) return practiceState.elapsed;
+  return (Date.now() - practiceState.startedAt) / 1000;
+}
+
+function measurePractice(input, target) {
+  const typed = input.length;
+  let correct = 0;
+  let mistakes = 0;
+  let firstMistake = -1;
+
+  for (let index = 0; index < typed; index += 1) {
+    if (input[index] === target[index]) {
+      correct += 1;
+    } else {
+      mistakes += 1;
+      if (firstMistake === -1) firstMistake = index;
+    }
+  }
+
+  const elapsed = Math.max(getPracticeElapsed(), 0.01);
+  const wpm = Math.round((typed / 5) / (elapsed / 60));
+  const accuracy = typed ? Math.max(0, Math.round((correct / typed) * 100)) : 100;
+
+  return {
+    typed,
+    correct,
+    mistakes,
+    firstMistake,
+    elapsed,
+    wpm,
+    accuracy,
+    complete: input === target
+  };
+}
+
+function renderCharacterTrack() {
+  const input = practiceInput.value;
+  const target = practiceState.target;
+  characterTrack.innerHTML = "";
+
+  [...target].forEach((char, index) => {
+    const span = document.createElement("span");
+    const typed = input[index];
+    span.textContent = char === " " ? " " : char;
+    if (typed == null) span.className = "pending";
+    else span.className = typed === char ? "correct" : "incorrect";
+    characterTrack.append(span);
+  });
+}
+
+function completePracticeRound(result) {
+  practiceState.finished = true;
+  practiceState.elapsed = result.elapsed;
+  stopPracticeTimer();
+  practiceInput.disabled = true;
+
+  const saved = savePracticeBest({
+    wpm: result.wpm,
+    accuracy: result.accuracy,
+    mistakes: result.mistakes,
+    time: result.elapsed.toFixed(1)
+  });
+
+  practiceFeedback.textContent = `Complete: ${result.wpm} WPM, ${result.accuracy}% accuracy, ${result.mistakes} mistakes, ${result.elapsed.toFixed(1)} seconds.`;
+  practiceBest.textContent = `Best score: ${saved.wpm} WPM · ${saved.accuracy}% accuracy · ${saved.time}s`;
+}
+
+function renderPracticeProgress() {
+  if (!practiceState.target) {
+    practiceTime.textContent = "0.0s";
+    practiceWpm.textContent = "0";
+    practiceAccuracy.textContent = "100%";
+    practiceMistakes.textContent = "0";
+    return;
+  }
+
+  const result = measurePractice(practiceInput.value, practiceState.target);
+  practiceTime.textContent = `${result.elapsed.toFixed(1)}s`;
+  practiceWpm.textContent = String(result.wpm);
+  practiceAccuracy.textContent = `${result.accuracy}%`;
+  practiceMistakes.textContent = String(result.mistakes);
+  renderCharacterTrack();
+
+  if (result.complete && !practiceState.finished) {
+    completePracticeRound(result);
+    return;
+  }
+
+  if (!result.typed) {
+    practiceFeedback.textContent = "Start typing when you are ready.";
+  } else if (result.firstMistake === -1) {
+    practiceFeedback.textContent = "So far, every typed character matches.";
+  } else {
+    practiceFeedback.textContent = `Check character ${result.firstMistake + 1}; something differs from the prompt.`;
+  }
+}
+
+function choosePracticeItem() {
+  const items = getPracticeItems();
+  if (!items.length) return null;
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function setPracticeItem(item = choosePracticeItem()) {
+  resetPracticeTimer();
+  practiceState.item = item;
+  practiceState.target = getPracticeTarget(item);
+  practiceInput.value = "";
+
+  const copy = practiceModeCopy[practiceState.mode];
+  practiceModeLabel.textContent = copy.label;
+  practiceTitle.textContent = copy.title;
+  practiceInputLabel.textContent = copy.inputLabel;
+
+  if (!item) {
+    practicePrompt.textContent = "No prompts are available for this combination yet.";
+    practiceInput.disabled = true;
+    practiceFeedback.textContent = "Choose another difficulty or topic.";
+    characterTrack.innerHTML = "";
+    renderPracticeBest();
+    renderPracticeProgress();
+    return;
+  }
+
+  practicePrompt.textContent = practiceState.target;
+  practiceInput.disabled = false;
+  practiceFeedback.textContent = "Start typing when you are ready.";
+  renderPracticeBest();
+  renderPracticeProgress();
+}
+
+function openPracticeMode(mode) {
+  practiceState.mode = mode;
+  renderPracticeTopics();
+  setPracticeItem();
+  practiceMenu.classList.add("hidden");
+  practiceWorkbench.classList.remove("hidden");
+  practiceWorkbench.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closePracticeMode() {
+  resetPracticeTimer();
+  practiceWorkbench.classList.add("hidden");
+  practiceMenu.classList.remove("hidden");
+  document.querySelector("#practice").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function retryPracticeRound() {
+  setPracticeItem(practiceState.item);
+  practiceInput.focus();
+}
+
 function startEditingPost(id) {
   const post = posts.find((item) => item.id === id);
   if (!post || !canEditPost(post)) return;
@@ -630,6 +913,37 @@ searchInput.addEventListener("input", renderPosts);
 sortSelect.addEventListener("change", renderPosts);
 clearForm.addEventListener("click", clearPostForm);
 closeReader.addEventListener("click", () => readerPanel.classList.add("hidden"));
+
+practiceCards.forEach((card) => {
+  card.addEventListener("click", () => openPracticeMode(card.dataset.practiceMode));
+});
+
+practiceBackButton.addEventListener("click", closePracticeMode);
+
+practiceDifficulty.addEventListener("change", () => {
+  renderPracticeTopics();
+  setPracticeItem();
+});
+
+practiceTopic.addEventListener("change", () => setPracticeItem());
+
+practiceStartButton.addEventListener("click", () => {
+  startPracticeTimer();
+  practiceInput.focus();
+});
+
+practiceNextButton.addEventListener("click", () => {
+  setPracticeItem();
+  practiceInput.focus();
+});
+
+practiceRetryButton.addEventListener("click", retryPracticeRound);
+
+practiceInput.addEventListener("input", () => {
+  if (practiceState.finished) return;
+  if (practiceInput.value.length) startPracticeTimer();
+  renderPracticeProgress();
+});
 
 exportButton.addEventListener("click", () => {
   if (!isOwner()) return;
