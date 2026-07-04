@@ -1,12 +1,16 @@
-# Common Pages
+# Common Pages Beta
 
-Static site for a public writing shelf and language practice space.
+Private owner preview for upcoming Common Pages features.
 
 ## Publish
 
-Upload this folder to a static host such as Netlify, Vercel, GitHub Pages, or Cloudflare Pages.
+Upload this folder as `beta` in the GitHub Pages repo root. It will be available at:
 
-After publishing, the **Text Link** button will share the public URL from a phone share sheet or SMS fallback.
+`https://common-pages.com/beta/`
+
+The beta is gated in the browser and only unlocks for the owner account:
+
+`gradydflem@gmail.com`
 
 ## Practice
 

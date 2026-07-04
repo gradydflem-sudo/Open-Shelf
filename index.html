@@ -3,16 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Common Pages</title>
+    <title>Common Pages Beta</title>
     <meta name="theme-color" content="#fffaf1" />
-    <meta name="description" content="Common Pages is a public reading shelf and language practice space for essays, memoirs, fiction, notes, typing drills, and Spanish practice." />
-    <link rel="stylesheet" href="styles.css?v=20260704-practice-lab" />
+    <meta name="description" content="Common Pages beta is a private owner preview for upcoming writing and language practice features." />
+    <link rel="stylesheet" href="styles.css?v=20260704-owner-beta" />
   </head>
-  <body>
+  <body class="beta-locked">
     <header class="topbar">
       <a class="brand" href="#home" aria-label="Common Pages home">
         <span class="brand-mark">CP</span>
         <span>Common Pages</span>
+        <em class="beta-badge">Beta</em>
       </a>
       <nav class="nav" aria-label="Primary">
         <a href="#read">Read</a>
@@ -43,6 +44,15 @@
       </div>
     </header>
 
+    <section class="beta-gate" id="betaGate" aria-live="polite">
+      <p class="eyebrow">Private Beta</p>
+      <h1>Common Pages Beta</h1>
+      <p class="deck" id="betaGateMessage">
+        Sign in with the owner account to preview upcoming Common Pages features before they go public.
+      </p>
+      <a class="button secondary" href="https://common-pages.com/">Public site</a>
+    </section>
+
     <main>
       <section class="hero" id="home">
         <div class="hero-media" aria-hidden="true">
@@ -51,10 +61,10 @@
           <div class="paper paper-c"></div>
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Independent writing, gathered with care</p>
+          <p class="eyebrow">Private beta, owner preview</p>
           <h1>Common Pages</h1>
           <p class="deck">
-            A home for essays, memoirs, fiction, and notes from you and the people you love to read.
+            A private preview of the next Common Pages build, including the new Practice language lab.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#submit">Publish a Piece</a>
@@ -278,7 +288,7 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="practice-data.js?v=20260704-practice-lab"></script>
-    <script src="app.js?v=20260704-practice-lab"></script>
+    <script src="practice-data.js?v=20260704-owner-beta"></script>
+    <script src="app.js?v=20260704-owner-beta"></script>
   </body>
 </html>

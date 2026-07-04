@@ -1,6 +1,6 @@
 const SUPABASE_URL = "https://fabucdcrmpdvyukflggx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_aPWFDpPUCanreVvU_y9mdg_K3_sH-AV";
-const SITE_URL = "https://common-pages.com/";
+const SITE_URL = "https://common-pages.com/beta/";
 const SUBSTACK_PUBLISH_URL = "https://substack.com/publish";
 const OWNER_EMAIL = "gradydflem@gmail.com";
 const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
@@ -53,6 +53,8 @@ const exportButton = document.querySelector("#exportButton");
 const importInput = document.querySelector("#importInput");
 const resetButton = document.querySelector("#resetButton");
 const clearForm = document.querySelector("#clearForm");
+const betaGate = document.querySelector("#betaGate");
+const betaGateMessage = document.querySelector("#betaGateMessage");
 const practiceMenu = document.querySelector("#practiceMenu");
 const practiceWorkbench = document.querySelector("#practiceWorkbench");
 const practiceCards = document.querySelectorAll("[data-practice-mode]");
@@ -300,6 +302,21 @@ function renderAccess() {
 
   submitButton.textContent = editingPostId ? "Save Changes" : owner ? "Publish" : "Submit for Approval";
   clearForm.textContent = editingPostId ? "Cancel Edit" : "Clear";
+}
+
+function renderBetaAccess() {
+  const owner = isOwner();
+  document.body.classList.toggle("beta-locked", !owner);
+  document.body.classList.toggle("beta-unlocked", owner);
+  betaGate.classList.toggle("hidden", owner);
+
+  if (owner) {
+    betaGateMessage.textContent = "Owner access confirmed.";
+  } else if (isSignedIn()) {
+    betaGateMessage.textContent = `Signed in as ${account.email}. This private beta is currently limited to ${OWNER_EMAIL}.`;
+  } else {
+    betaGateMessage.textContent = "Sign in with the owner account to preview upcoming Common Pages features before they go public.";
+  }
 }
 
 function renderCategories() {
@@ -752,6 +769,7 @@ async function deletePost(post) {
 function render() {
   renderAccount();
   renderAccess();
+  renderBetaAccess();
   renderCategories();
   renderPosts();
   renderLibrary();
