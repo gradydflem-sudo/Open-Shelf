@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Open Shelf</title>
+    <title>Common Pages</title>
     <meta name="theme-color" content="#fffaf1" />
-    <meta name="description" content="Open Shelf is a public reading shelf for essays, memoirs, fiction, and notes." />
-    <link rel="stylesheet" href="styles.css?v=20260703-share-fix" />
+    <meta name="description" content="Common Pages is a public reading shelf for essays, memoirs, fiction, and notes." />
+    <link rel="stylesheet" href="styles.css?v=20260704-common-pages" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#home" aria-label="Open Shelf home">
-        <span class="brand-mark">OS</span>
-        <span>Open Shelf</span>
+      <a class="brand" href="#home" aria-label="Common Pages home">
+        <span class="brand-mark">CP</span>
+        <span>Common Pages</span>
       </a>
       <nav class="nav" aria-label="Primary">
         <a href="#read">Read</a>
@@ -51,7 +51,7 @@
         </div>
         <div class="hero-copy">
           <p class="eyebrow">Independent writing, gathered with care</p>
-          <h1>Open Shelf</h1>
+          <h1>Common Pages</h1>
           <p class="deck">
             A home for essays, memoirs, fiction, and notes from you and the people you love to read.
           </p>
@@ -136,6 +136,12 @@
             <textarea id="bodyInput" name="body" required rows="14"></textarea>
           </label>
 
+          <label class="check-row">
+            <input id="substackInput" type="checkbox" />
+            <span>After saving, help me publish this on Substack too.</span>
+          </label>
+          <p class="substack-note" id="substackNote" aria-live="polite"></p>
+
           <div class="form-actions">
             <button class="button primary" id="submitButton" type="submit">Publish</button>
             <button class="button secondary" id="clearForm" type="button">Clear</button>
@@ -175,6 +181,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260703-share-fix"></script>
+    <script src="app.js?v=20260704-common-pages"></script>
   </body>
 </html>

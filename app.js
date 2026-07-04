@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://fabucdcrmpdvyukflggx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_aPWFDpPUCanreVvU_y9mdg_K3_sH-AV";
-const SITE_URL = "https://gradydflem-sudo.github.io/Open-Shelf/";
+const SITE_URL = "https://common-pages.com/";
+const SUBSTACK_PUBLISH_URL = "https://substack.com/publish";
 const OWNER_EMAIL = "gradydflem@gmail.com";
 const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
 
@@ -35,6 +36,8 @@ const titleInput = document.querySelector("#titleInput");
 const authorInput = document.querySelector("#authorInput");
 const submitButton = document.querySelector("#submitButton");
 const bodyInput = document.querySelector("#bodyInput");
+const substackInput = document.querySelector("#substackInput");
+const substackNote = document.querySelector("#substackNote");
 const fileInput = document.querySelector("#fileInput");
 const fileName = document.querySelector("#fileName");
 const searchInput = document.querySelector("#searchInput");
@@ -114,12 +117,23 @@ function escapeHTML(value) {
   });
 }
 
+function linkifyText(value) {
+  return String(value)
+    .split(/(https?:\/\/[^\s]+)/g)
+    .map((part) => {
+      if (!/^https?:\/\//i.test(part)) return escapeHTML(part);
+      const safeUrl = escapeHTML(part);
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
+    })
+    .join("");
+}
+
 function formatReaderBody(text) {
   return String(text)
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
+    .map((paragraph) => `<p>${linkifyText(paragraph)}</p>`)
     .join("");
 }
 
@@ -130,13 +144,13 @@ function getShareUrl() {
 
 async function shareSite() {
   const shareUrl = getShareUrl();
-  const shareText = `Read Open Shelf: ${shareUrl}`;
+  const shareText = `Read Common Pages: ${shareUrl}`;
 
   if (navigator.share) {
     try {
       await navigator.share({
-        title: "Open Shelf",
-        text: "Read Open Shelf",
+        title: "Common Pages",
+        text: "Read Common Pages",
         url: shareUrl
       });
       shareStatus.textContent = "Ready to share.";
@@ -366,11 +380,47 @@ function openPost(id) {
   readerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function clearPostForm() {
+function clearPostForm({ preserveSubstackNote = false } = {}) {
   editingPostId = null;
   postForm.reset();
   fileName.textContent = "Choose file";
+  if (!preserveSubstackNote) substackNote.textContent = "";
   renderAccess();
+}
+
+function buildSubstackDraft(post) {
+  return [
+    post.title,
+    "",
+    post.body,
+    "",
+    `Originally submitted to Common Pages: ${SITE_URL}`
+  ].join("\n");
+}
+
+async function copySubstackDraft(post) {
+  if (!navigator.clipboard) return false;
+  try {
+    await navigator.clipboard.writeText(buildSubstackDraft(post));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function offerSubstackHandoff(post) {
+  if (!substackInput.checked) return;
+
+  const copied = await copySubstackDraft(post);
+  const status = copied
+    ? "Copied a Substack-ready draft. Open Substack, sign in or create an account, then paste it into a new post."
+    : "Saved to Common Pages. Open Substack, then copy your title and writing into a new post.";
+  substackNote.textContent = status;
+
+  const shouldOpen = window.confirm(`${status}\n\nOpen Substack now?`);
+  if (shouldOpen) {
+    window.open(SUBSTACK_PUBLISH_URL, "_blank", "noopener,noreferrer");
+  }
 }
 
 function startEditingPost(id) {
@@ -527,7 +577,8 @@ postForm.addEventListener("submit", async (event) => {
     }
 
     const updatedId = editingPostId;
-    clearPostForm();
+    await offerSubstackHandoff(payload);
+    clearPostForm({ preserveSubstackNote: true });
     activeCategory = payload.status === "published" ? payload.category : "All";
     await refresh();
     if (payload.status === "published") openPost(updatedId);
@@ -549,7 +600,8 @@ postForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  clearPostForm();
+  await offerSubstackHandoff(payload);
+  clearPostForm({ preserveSubstackNote: true });
   activeCategory = data.status === "published" ? data.category : "All";
   await refresh();
 
@@ -585,7 +637,7 @@ exportButton.addEventListener("click", () => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "open-shelf-library.json";
+  anchor.download = "common-pages-library.json";
   anchor.click();
   URL.revokeObjectURL(url);
 });
