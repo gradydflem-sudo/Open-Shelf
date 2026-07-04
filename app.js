@@ -1,5 +1,6 @@
 const SUPABASE_URL = "https://fabucdcrmpdvyukflggx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_aPWFDpPUCanreVvU_y9mdg_K3_sH-AV";
+const SITE_URL = "https://gradydflem-sudo.github.io/Open-Shelf/";
 const OWNER_EMAIL = "gradydflem@gmail.com";
 const CATEGORIES = ["Essays", "Memoirs", "Fiction", "Notes"];
 
@@ -426,6 +427,7 @@ async function signInOrCreateAccount({ name, email, password }) {
       email,
       password,
       options: {
+        emailRedirectTo: SITE_URL,
         data: {
           display_name: name || email.split("@")[0]
         }
