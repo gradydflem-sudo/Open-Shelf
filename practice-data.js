@@ -458,5 +458,295 @@ window.CommonPagesPracticeData = {
       difficulty: "advanced",
       category: "flash fiction"
     }
+  ],
+  archivistItems: [
+    {
+      description: "A silver crown that whispers the names of rulers who were never born.",
+      tag: "Royal",
+      theme: "royal archive",
+      tier: 1
+    },
+    {
+      description: "A field notebook containing sketches of moonlit plants and measurements of their growth.",
+      tag: "Scientific",
+      theme: "scientific archive",
+      tier: 1
+    },
+    {
+      description: "An unsigned treaty sealed with green wax, describing the border between two mountain kingdoms.",
+      tag: "Treaty",
+      theme: "legal archive",
+      tier: 1
+    },
+    {
+      description: "A folded parchment describing the rights of citizens during a disputed election.",
+      tag: "Legal",
+      theme: "civic archive",
+      tier: 1
+    },
+    {
+      description: "A leather journal marked with dates, weather, and private worries about leaving home.",
+      tag: "Diary",
+      theme: "personal archive",
+      tier: 1
+    },
+    {
+      description: "A coastal chart with reefs, compass roses, and a red route to a hidden harbor.",
+      tag: "Map",
+      theme: "historical archive",
+      tier: 1
+    },
+    {
+      description: "A doctor's casebook listing symptoms, remedies, and recovery notes for miners with glass-fever.",
+      tag: "Medical",
+      theme: "scientific archive",
+      tier: 1
+    },
+    {
+      description: "A brass machine that folds letters by itself and stamps each one with the current date.",
+      tag: "Invention",
+      theme: "scientific archive",
+      tier: 1
+    },
+    {
+      description: "A spell card that warms a room when its final line is spoken aloud.",
+      tag: "Spell",
+      theme: "magical archive",
+      tier: 1
+    },
+    {
+      description: "A school essay about the first council meeting after the old empire dissolved.",
+      tag: "Historical",
+      theme: "historical archive",
+      tier: 1
+    },
+    {
+      description: "A family letter folded around a pressed flower, signed only 'your son'.",
+      tag: "Personal",
+      theme: "personal archive",
+      tier: 1
+    },
+    {
+      description: "A carved tablet retelling how the moon learned the names of the rivers.",
+      tag: "Mythic",
+      theme: "magical archive",
+      tier: 1
+    },
+    {
+      description: "A royal decree ordering every bell in the capital to ring at sunrise.",
+      tag: "Royal",
+      theme: "royal archive",
+      tier: 2
+    },
+    {
+      description: "A narrow legal brief arguing that a mayor cannot cancel an election after voting has begun.",
+      tag: "Legal",
+      theme: "civic archive",
+      tier: 2
+    },
+    {
+      description: "A campaign speech copied in blue ink, promising lower taxes and wider bridges.",
+      tag: "Political",
+      theme: "civic archive",
+      tier: 2
+    },
+    {
+      description: "A sealed prophecy claiming that the youngest bell-ringer will name the next age.",
+      tag: "Prophecy",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "A cursed mirror that shows a reader the argument they are most afraid to lose.",
+      tag: "Cursed",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "An elven grammar carved on pale bark, explaining verbs used only for promises.",
+      tag: "Elven",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "A forbidden index listing books removed from the eastern reading room by royal order.",
+      tag: "Forbidden",
+      theme: "royal archive",
+      tier: 2
+    },
+    {
+      description: "A lab report comparing three lantern oils and their brightness in underground tunnels.",
+      tag: "Scientific",
+      theme: "scientific archive",
+      tier: 2
+    },
+    {
+      description: "A peace agreement signed by two queens, three ministers, and a witness from the river towns.",
+      tag: "Treaty",
+      theme: "legal archive",
+      tier: 2
+    },
+    {
+      description: "A surgeon's diagram of a crystal splinter lodged safely away from the heart.",
+      tag: "Medical",
+      theme: "scientific archive",
+      tier: 2
+    },
+    {
+      description: "A palace inventory listing velvet banners, ceremonial keys, and the king's winter cloak.",
+      tag: "Royal",
+      theme: "royal archive",
+      tier: 2
+    },
+    {
+      description: "A map of sewer passages beneath the capital, with exits marked near the senate hall.",
+      tag: "Map",
+      theme: "civic archive",
+      tier: 2
+    },
+    {
+      description: "A diary entry confessing that the author voted against her own brother in council.",
+      tag: "Diary",
+      theme: "personal archive",
+      tier: 2
+    },
+    {
+      description: "A drawing of a wind-powered lift designed to carry books between seven floors.",
+      tag: "Invention",
+      theme: "scientific archive",
+      tier: 2
+    },
+    {
+      description: "A spell written in mirror-script, promising to reveal hidden doors when read backward.",
+      tag: "Spell",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "An elven travel song with route markers woven into the chorus.",
+      tag: "Elven",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "A chronicle of the winter famine, listing grain prices and council debates by month.",
+      tag: "Historical",
+      theme: "historical archive",
+      tier: 2
+    },
+    {
+      description: "A mythic hymn describing a sea that remembers every oath spoken beside it.",
+      tag: "Mythic",
+      theme: "magical archive",
+      tier: 2
+    },
+    {
+      description: "A private birthday note from a queen to her daughter, hidden inside a public decree.",
+      tag: "Personal",
+      theme: "royal archive",
+      tier: 2
+    },
+    {
+      description: "A ballot pamphlet comparing two plans for rebuilding the city gates.",
+      tag: "Political",
+      theme: "civic archive",
+      tier: 2
+    },
+    {
+      description: "A prophecy written as a weather report, forecasting three days of ash and one morning of bells.",
+      tag: "Prophecy",
+      theme: "magical archive",
+      tier: 3
+    },
+    {
+      description: "A cursed tax ledger where every unpaid debt reappears in red ink by dawn.",
+      tag: "Cursed",
+      theme: "civic archive",
+      tier: 3
+    },
+    {
+      description: "A forbidden medical recipe banned after it cured fever but erased the patient's last dream.",
+      tag: "Forbidden",
+      theme: "medical archive",
+      tier: 3
+    },
+    {
+      description: "A legal ruling on whether an enchanted signature can bind a person who never touched the page.",
+      tag: "Legal",
+      theme: "legal archive",
+      tier: 3
+    },
+    {
+      description: "A political memo urging senators to delay the flood vote until the harbor guild changes sides.",
+      tag: "Political",
+      theme: "civic archive",
+      tier: 3
+    },
+    {
+      description: "A treaty draft with every border crossed out except the one around the royal library.",
+      tag: "Treaty",
+      theme: "royal archive",
+      tier: 3
+    },
+    {
+      description: "A scientific abstract claiming that prophecy ink darkens before civic unrest.",
+      tag: "Scientific",
+      theme: "scientific archive",
+      tier: 3
+    },
+    {
+      description: "A map drawn from memory by a prisoner who never saw the city in daylight.",
+      tag: "Map",
+      theme: "historical archive",
+      tier: 3
+    },
+    {
+      description: "A diary written as inventory notes, hiding grief between counts of candles and thread.",
+      tag: "Diary",
+      theme: "personal archive",
+      tier: 3
+    },
+    {
+      description: "An elven treaty whose clauses are sung, not written, so each witness must remember the tune.",
+      tag: "Elven",
+      theme: "legal archive",
+      tier: 3
+    },
+    {
+      description: "A mythic court record accusing the north wind of breaking a bridge agreement.",
+      tag: "Mythic",
+      theme: "legal archive",
+      tier: 3
+    },
+    {
+      description: "An invention that sorts books by the emotion most likely to make a reader open them.",
+      tag: "Invention",
+      theme: "scientific archive",
+      tier: 3
+    },
+    {
+      description: "A spell disguised as a cookbook recipe, activating only when the measurements are read aloud.",
+      tag: "Spell",
+      theme: "magical archive",
+      tier: 3
+    },
+    {
+      description: "A historical deposition from the last witness to the library's first fire.",
+      tag: "Historical",
+      theme: "historical archive",
+      tier: 3
+    },
+    {
+      description: "A medical ethics complaint about testing sleep potions on volunteer scribes.",
+      tag: "Medical",
+      theme: "medical archive",
+      tier: 3
+    },
+    {
+      description: "A personal apology never sent because the messenger was appointed to the council the same day.",
+      tag: "Personal",
+      theme: "civic archive",
+      tier: 3
+    }
   ]
 };

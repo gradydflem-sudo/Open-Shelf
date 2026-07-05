@@ -56,8 +56,10 @@ const resetButton = document.querySelector("#resetButton");
 const clearForm = document.querySelector("#clearForm");
 const practiceMenu = document.querySelector("#practiceMenu");
 const practiceWorkbench = document.querySelector("#practiceWorkbench");
+const practiceLayout = document.querySelector("#practiceLayout");
 const practiceCards = document.querySelectorAll("[data-practice-mode]");
 const practiceBackButton = document.querySelector("#practiceBackButton");
+const practiceSelects = document.querySelector(".practice-selects");
 const practiceDifficulty = document.querySelector("#practiceDifficulty");
 const practiceTopic = document.querySelector("#practiceTopic");
 const practiceTimerControl = document.querySelector("#practiceTimerControl");
@@ -83,6 +85,23 @@ const practiceFinishButton = document.querySelector("#practiceFinishButton");
 const practiceNextButton = document.querySelector("#practiceNextButton");
 const practiceRetryButton = document.querySelector("#practiceRetryButton");
 const practiceLeaderboard = document.querySelector("#practiceLeaderboard");
+const archivistGame = document.querySelector("#archivistGame");
+const archivistMode = document.querySelector("#archivistMode");
+const archivistTags = document.querySelector("#archivistTags");
+const archivistStage = document.querySelector("#archivistStage");
+const archivistStartCard = document.querySelector("#archivistStartCard");
+const archivistInput = document.querySelector("#archivistInput");
+const archivistFeedback = document.querySelector("#archivistFeedback");
+const archivistScore = document.querySelector("#archivistScore");
+const archivistSaved = document.querySelector("#archivistSaved");
+const archivistLost = document.querySelector("#archivistLost");
+const archivistStreak = document.querySelector("#archivistStreak");
+const archivistTime = document.querySelector("#archivistTime");
+const archivistStartButton = document.querySelector("#archivistStartButton");
+const archivistBellButton = document.querySelector("#archivistBellButton");
+const archivistResetButton = document.querySelector("#archivistResetButton");
+const archivistUpgrades = document.querySelector("#archivistUpgrades");
+const archivistResult = document.querySelector("#archivistResult");
 const ownerOnlyControls = [
   exportButton,
   importInput.closest(".import-button"),
@@ -91,7 +110,8 @@ const ownerOnlyControls = [
 const practiceData = window.CommonPagesPracticeData || {
   spanishPrompts: [],
   typingPassages: [],
-  writingPrompts: []
+  writingPrompts: [],
+  archivistItems: []
 };
 const practiceModeCopy = {
   "spanish-retype": {
@@ -113,7 +133,143 @@ const practiceModeCopy = {
     label: "Writing Sprint",
     title: "Write from the prompt.",
     inputLabel: "Your response"
+  },
+  archivist: {
+    label: "The Rogue-lite Archivist",
+    title: "Type the correct category tag.",
+    inputLabel: "Category tag"
   }
+};
+const ARCHIVIST_TAGS = [
+  "Cursed",
+  "Royal",
+  "Elven",
+  "Scientific",
+  "Historical",
+  "Forbidden",
+  "Medical",
+  "Legal",
+  "Mythic",
+  "Political",
+  "Personal",
+  "Prophecy",
+  "Map",
+  "Treaty",
+  "Spell",
+  "Diary",
+  "Invention"
+];
+const ARCHIVIST_MODES = {
+  calm: {
+    label: "Calm Mode",
+    timeLimit: 90,
+    speed: 24,
+    spawnEvery: 3400,
+    activeLimit: 2,
+    maxLost: 5,
+    maxTier: 1,
+    scoreMultiplier: 1,
+    tags: ["Royal", "Scientific", "Treaty", "Legal", "Diary", "Map", "Medical", "Spell", "Historical", "Personal", "Mythic", "Invention"]
+  },
+  normal: {
+    label: "Normal Mode",
+    timeLimit: 90,
+    speed: 34,
+    spawnEvery: 2600,
+    activeLimit: 3,
+    maxLost: 4,
+    maxTier: 2,
+    scoreMultiplier: 1.2,
+    tags: ["Cursed", "Royal", "Elven", "Scientific", "Historical", "Forbidden", "Medical", "Legal", "Mythic", "Political", "Personal", "Prophecy", "Map", "Treaty", "Spell", "Diary", "Invention"]
+  },
+  archivist: {
+    label: "Archivist Mode",
+    timeLimit: 100,
+    speed: 44,
+    spawnEvery: 2100,
+    activeLimit: 4,
+    maxLost: 3,
+    maxTier: 3,
+    scoreMultiplier: 1.45,
+    tags: ARCHIVIST_TAGS
+  }
+};
+const ARCHIVIST_UPGRADES = [
+  {
+    id: "slower-scroll",
+    name: "Slower Scroll",
+    text: "Items fall 18% more slowly.",
+    apply() {
+      archivistState.speedMultiplier *= 0.82;
+    }
+  },
+  {
+    id: "better-lantern",
+    name: "Better Lantern",
+    text: "Key clue words glow on new items.",
+    apply() {
+      archivistState.lantern = true;
+    }
+  },
+  {
+    id: "extra-shelf",
+    name: "Extra Shelf",
+    text: "One extra missed item is allowed.",
+    apply() {
+      archivistState.maxLost += 1;
+    }
+  },
+  {
+    id: "index-cards",
+    name: "Index Cards",
+    text: "Show the possible category tags.",
+    apply() {
+      archivistState.indexCards = true;
+    }
+  },
+  {
+    id: "apprentice-helper",
+    name: "Apprentice Helper",
+    text: "Automatically saves one falling item.",
+    apply() {
+      archivistState.autoSaveCharges += 1;
+    }
+  },
+  {
+    id: "archive-bell",
+    name: "Archive Bell",
+    text: "Unlock a brief pause button.",
+    apply() {
+      archivistState.bellCharges += 1;
+    }
+  },
+  {
+    id: "magnifying-glass",
+    name: "Magnifying Glass",
+    text: "Reveal a first-letter hint for the lowest item.",
+    apply() {
+      archivistState.hints = true;
+    }
+  }
+];
+const ARCHIVIST_CLUES = {
+  Cursed: ["cursed", "red ink", "afraid", "reappears"],
+  Royal: ["crown", "king", "queen", "palace", "royal"],
+  Elven: ["elven", "bark", "song", "sung"],
+  Scientific: ["notebook", "measurements", "report", "abstract", "comparing"],
+  Historical: ["chronicle", "historical", "witness", "first", "old empire"],
+  Forbidden: ["forbidden", "banned", "removed"],
+  Medical: ["doctor", "symptoms", "surgeon", "medical", "fever", "patient"],
+  Legal: ["rights", "brief", "ruling", "legal", "court", "signature"],
+  Mythic: ["mythic", "hymn", "moon", "oath", "north wind"],
+  Political: ["campaign", "senators", "election", "vote", "taxes"],
+  Personal: ["family", "private", "birthday", "apology", "son"],
+  Prophecy: ["prophecy", "forecasting", "next age"],
+  Map: ["map", "chart", "route", "exits", "border"],
+  Treaty: ["treaty", "agreement", "clauses", "signed"],
+  Spell: ["spell", "spoken aloud", "mirror-script", "activating"],
+  Diary: ["diary", "journal", "entry", "dates"],
+  Invention: ["machine", "designed", "powered", "invention", "sorts"]
 };
 let practiceState = {
   mode: "spanish-retype",
@@ -124,6 +280,33 @@ let practiceState = {
   finished: false,
   timerId: null,
   lastResult: null
+};
+let archivistState = {
+  running: false,
+  paused: false,
+  loopId: null,
+  lastFrame: 0,
+  lastSpawn: 0,
+  nextId: 1,
+  mode: "normal",
+  items: [],
+  seenIds: [],
+  score: 0,
+  saved: 0,
+  lost: 0,
+  wrong: 0,
+  streak: 0,
+  bestStreak: 0,
+  timeLeft: 90,
+  maxLost: 4,
+  speedMultiplier: 1,
+  indexCards: false,
+  lantern: false,
+  hints: false,
+  autoSaveCharges: 0,
+  bellCharges: 0,
+  upgrades: [],
+  nextUpgradeAt: 4
 };
 
 function isOwner() {
@@ -708,6 +891,378 @@ function normalizePracticeAnswer(value) {
     .trim();
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function archiveConfig() {
+  return ARCHIVIST_MODES[archivistState.mode] || ARCHIVIST_MODES.normal;
+}
+
+function archiveItemsForMode() {
+  const config = archiveConfig();
+  return (practiceData.archivistItems || []).filter((item) => {
+    return item.tier <= config.maxTier && config.tags.includes(item.tag);
+  });
+}
+
+function normalizeArchiveTag(value) {
+  return normalizePracticeAnswer(value).replace(/\s+/g, "");
+}
+
+function formatArchiveDescription(item, isLowest = false) {
+  let description = escapeHTML(item.description);
+  if (archivistState.lantern) {
+    (ARCHIVIST_CLUES[item.tag] || []).forEach((clue) => {
+      const pattern = new RegExp(`\\b(${escapeRegExp(escapeHTML(clue))})\\b`, "gi");
+      description = description.replace(pattern, "<mark>$1</mark>");
+    });
+  }
+  const hint = archivistState.hints && isLowest
+    ? `<em class="archive-hint">Hint: ${escapeHTML(item.tag[0])}${".".repeat(Math.max(0, item.tag.length - 1))}</em>`
+    : "";
+  return `${description}${hint}`;
+}
+
+function renderArchivistTags() {
+  const config = archiveConfig();
+  const visibleTags = archivistState.indexCards || archivistState.mode === "calm";
+  if (!visibleTags) {
+    archivistTags.innerHTML = `<span class="locked-tags">Index Cards hidden. Earn the upgrade to reveal possible tags.</span>`;
+    return;
+  }
+
+  archivistTags.innerHTML = config.tags.map((tag) => `<span>${escapeHTML(tag)}</span>`).join("");
+}
+
+function renderArchivistStats() {
+  archivistScore.textContent = String(archivistState.score);
+  archivistSaved.textContent = String(archivistState.saved);
+  archivistLost.textContent = `${archivistState.lost}/${archivistState.maxLost}`;
+  archivistStreak.textContent = String(archivistState.streak);
+  archivistTime.textContent = `${Math.max(0, Math.ceil(archivistState.timeLeft))}s`;
+  archivistBellButton.disabled = !archivistState.running || archivistState.bellCharges <= 0 || archivistState.paused;
+  renderArchivistTags();
+}
+
+function renderArchivistUpgrades() {
+  if (!archivistState.upgrades.length) {
+    archivistUpgrades.innerHTML = "<p>No upgrades yet. Save items to earn choices during the run.</p>";
+    return;
+  }
+
+  archivistUpgrades.innerHTML = archivistState.upgrades.map((upgrade) => `
+    <span>${escapeHTML(upgrade)}</span>
+  `).join("");
+}
+
+function clearArchiveItems() {
+  archivistState.items.forEach((item) => item.node?.remove());
+  archivistState.items = [];
+}
+
+function resetArchivistRun({ keepMode = true } = {}) {
+  if (archivistState.loopId) window.cancelAnimationFrame(archivistState.loopId);
+  clearArchiveItems();
+  archivistState = {
+    running: false,
+    paused: false,
+    loopId: null,
+    lastFrame: 0,
+    lastSpawn: 0,
+    nextId: 1,
+    mode: keepMode ? archivistMode.value : "normal",
+    items: [],
+    seenIds: [],
+    score: 0,
+    saved: 0,
+    lost: 0,
+    wrong: 0,
+    streak: 0,
+    bestStreak: 0,
+    timeLeft: ARCHIVIST_MODES[keepMode ? archivistMode.value : "normal"].timeLimit,
+    maxLost: ARCHIVIST_MODES[keepMode ? archivistMode.value : "normal"].maxLost,
+    speedMultiplier: 1,
+    indexCards: keepMode && archivistMode.value === "calm",
+    lantern: false,
+    hints: false,
+    autoSaveCharges: 0,
+    bellCharges: 0,
+    upgrades: [],
+    nextUpgradeAt: 4
+  };
+  archivistInput.value = "";
+  archivistInput.disabled = true;
+  archivistStartButton.textContent = "Start Run";
+  archivistStartCard.classList.remove("hidden");
+  archivistFeedback.textContent = "Choose a mode, then start a run.";
+  archivistResult.textContent = "No run completed yet.";
+  renderArchivistStats();
+  renderArchivistUpgrades();
+}
+
+function chooseArchiveItem() {
+  const items = archiveItemsForMode();
+  const activeDescriptions = new Set(archivistState.items.map((item) => item.description));
+  const freshItems = items.filter((item) => {
+    return !activeDescriptions.has(item.description) && !archivistState.seenIds.includes(item.description);
+  });
+  const pool = freshItems.length ? freshItems : items.filter((item) => !activeDescriptions.has(item.description));
+  const item = pool[Math.floor(Math.random() * pool.length)] || items[Math.floor(Math.random() * items.length)];
+  if (!item) return null;
+  archivistState.seenIds.push(item.description);
+  if (archivistState.seenIds.length > 18) archivistState.seenIds.shift();
+  return item;
+}
+
+function spawnArchiveItem() {
+  if (archivistState.items.length >= archiveConfig().activeLimit) return;
+  const item = chooseArchiveItem();
+  if (!item) return;
+
+  const node = document.createElement("article");
+  node.className = "archive-item";
+  node.dataset.id = String(archivistState.nextId);
+  node.innerHTML = `
+    <strong>${escapeHTML(item.theme)}</strong>
+    <p>${formatArchiveDescription(item)}</p>
+  `;
+  archivistStage.append(node);
+
+  archivistState.items.push({
+    ...item,
+    id: archivistState.nextId,
+    y: -10,
+    node
+  });
+  archivistState.nextId += 1;
+}
+
+function scoreArchiveItem(item, auto = false) {
+  const stageHeight = Math.max(1, archivistStage.clientHeight || 380);
+  const progress = Math.min(1, Math.max(0, item.y / stageHeight));
+  const fastBonus = Math.round((1 - progress) * 65);
+  const streakBonus = archivistState.streak * 8;
+  const hardBonus = item.tier * 18;
+  const autoPenalty = auto ? 35 : 0;
+  return Math.max(20, Math.round((100 + fastBonus + streakBonus + hardBonus - autoPenalty) * archiveConfig().scoreMultiplier));
+}
+
+function removeArchiveItem(item) {
+  item.node?.remove();
+  archivistState.items = archivistState.items.filter((active) => active.id !== item.id);
+}
+
+function saveArchiveItem(item, { auto = false } = {}) {
+  archivistState.streak += 1;
+  archivistState.bestStreak = Math.max(archivistState.bestStreak, archivistState.streak);
+  const points = scoreArchiveItem(item, auto);
+  archivistState.score += points;
+  archivistState.saved += 1;
+  removeArchiveItem(item);
+  archivistFeedback.textContent = `${auto ? "Apprentice saved" : "Saved"} ${item.tag}. +${points} points.`;
+  if (archivistState.saved >= archivistState.nextUpgradeAt) offerArchivistUpgrade();
+  renderArchivistStats();
+}
+
+function loseArchiveItem(item) {
+  if (archivistState.autoSaveCharges > 0) {
+    archivistState.autoSaveCharges -= 1;
+    saveArchiveItem(item, { auto: true });
+    return;
+  }
+
+  archivistState.lost += 1;
+  archivistState.streak = 0;
+  removeArchiveItem(item);
+  archivistFeedback.textContent = `Lost item. It belonged on the ${item.tag} shelf.`;
+  renderArchivistStats();
+  if (archivistState.lost >= archivistState.maxLost) finishArchivistRun();
+}
+
+function renderArchiveItems() {
+  const lowest = [...archivistState.items].sort((a, b) => b.y - a.y)[0];
+  archivistState.items.forEach((item) => {
+    item.node.style.transform = `translateY(${item.y}px)`;
+    item.node.innerHTML = `
+      <strong>${escapeHTML(item.theme)}</strong>
+      <p>${formatArchiveDescription(item, lowest?.id === item.id)}</p>
+    `;
+  });
+}
+
+function archivistLoop(timestamp) {
+  if (!archivistState.running) return;
+
+  if (!archivistState.lastFrame) archivistState.lastFrame = timestamp;
+  const delta = Math.min(0.08, (timestamp - archivistState.lastFrame) / 1000);
+  archivistState.lastFrame = timestamp;
+
+  if (archivistState.paused) {
+    archivistState.loopId = window.requestAnimationFrame(archivistLoop);
+    return;
+  }
+
+  archivistState.timeLeft -= delta;
+  if (timestamp - archivistState.lastSpawn >= archiveConfig().spawnEvery) {
+    spawnArchiveItem();
+    archivistState.lastSpawn = timestamp;
+  }
+
+  const bottom = (archivistStage.clientHeight || 380) - 34;
+  archivistState.items.forEach((item) => {
+    item.y += archiveConfig().speed * archivistState.speedMultiplier * delta;
+  });
+
+  [...archivistState.items].forEach((item) => {
+    if (item.y >= bottom) loseArchiveItem(item);
+  });
+  if (!archivistState.running) return;
+
+  renderArchiveItems();
+  renderArchivistStats();
+
+  if (archivistState.timeLeft <= 0) {
+    finishArchivistRun();
+    return;
+  }
+
+  archivistState.loopId = window.requestAnimationFrame(archivistLoop);
+}
+
+function startArchivistRun() {
+  resetArchivistRun();
+  archivistState.running = true;
+  archivistState.paused = false;
+  const now = window.performance?.now ? window.performance.now() : 0;
+  archivistState.lastFrame = now;
+  archivistState.lastSpawn = now;
+  archivistStartButton.textContent = "Run Active";
+  archivistStartCard.classList.add("hidden");
+  archivistInput.disabled = false;
+  archivistInput.focus();
+  archivistFeedback.textContent = "Archive doors open. Type a tag, then press Enter.";
+  spawnArchiveItem();
+  renderArchivistStats();
+  archivistState.loopId = window.requestAnimationFrame(archivistLoop);
+}
+
+function submitArchiveTag() {
+  if (!archivistState.running || archivistState.paused) return;
+  const value = normalizeArchiveTag(archivistInput.value);
+  if (!value) return;
+
+  const matches = archivistState.items.filter((item) => normalizeArchiveTag(item.tag) === value);
+  if (matches.length) {
+    const target = matches.sort((a, b) => b.y - a.y)[0];
+    archivistInput.value = "";
+    saveArchiveItem(target);
+    return;
+  }
+
+  archivistState.wrong += 1;
+  archivistState.streak = 0;
+  archivistState.timeLeft = Math.max(0, archivistState.timeLeft - 4);
+  archivistFeedback.textContent = "Wrong shelf. Four seconds lost; keep reading.";
+  archivistInput.value = "";
+  renderArchivistStats();
+}
+
+function availableArchivistUpgrades() {
+  const used = new Set(archivistState.upgrades);
+  return ARCHIVIST_UPGRADES.filter((upgrade) => {
+    if (upgrade.id === "index-cards" && archivistState.indexCards) return false;
+    if (upgrade.id === "better-lantern" && archivistState.lantern) return false;
+    if (upgrade.id === "magnifying-glass" && archivistState.hints) return false;
+    return !used.has(upgrade.name) || ["Extra Shelf", "Apprentice Helper", "Archive Bell", "Slower Scroll"].includes(upgrade.name);
+  });
+}
+
+function offerArchivistUpgrade() {
+  archivistState.paused = true;
+  archivistState.nextUpgradeAt += 4;
+  const choices = availableArchivistUpgrades()
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+
+  archivistFeedback.textContent = "Upgrade ready. Choose one to continue the run.";
+  archivistUpgrades.innerHTML = choices.map((upgrade) => `
+    <button type="button" data-upgrade="${escapeHTML(upgrade.id)}">
+      <strong>${escapeHTML(upgrade.name)}</strong>
+      <span>${escapeHTML(upgrade.text)}</span>
+    </button>
+  `).join("");
+
+  archivistUpgrades.querySelectorAll("[data-upgrade]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const upgrade = ARCHIVIST_UPGRADES.find((item) => item.id === button.dataset.upgrade);
+      if (!upgrade) return;
+      upgrade.apply();
+      archivistState.upgrades.push(upgrade.name);
+      archivistState.paused = false;
+      archivistFeedback.textContent = `${upgrade.name} added. Keep shelving.`;
+      renderArchivistUpgrades();
+      renderArchivistStats();
+      archivistInput.focus();
+    });
+  });
+}
+
+function archiveRank(score) {
+  if (score >= 5200) return "Guardian of the Archive";
+  if (score >= 4000) return "Master Archivist";
+  if (score >= 2800) return "Senior Cataloger";
+  if (score >= 1800) return "Keeper of Shelves";
+  if (score >= 900) return "Junior Archivist";
+  return "New Assistant";
+}
+
+function finishArchivistRun() {
+  if (!archivistState.running) return;
+  archivistState.running = false;
+  archivistState.paused = false;
+  if (archivistState.loopId) window.cancelAnimationFrame(archivistState.loopId);
+  archivistState.loopId = null;
+  clearArchiveItems();
+  archivistInput.disabled = true;
+  archivistStartButton.textContent = "Start Run";
+  archivistStartCard.classList.remove("hidden");
+
+  const attempts = Math.max(1, archivistState.saved + archivistState.lost + archivistState.wrong);
+  const accuracy = Math.round((archivistState.saved / attempts) * 100);
+  const noLostBonus = archivistState.lost === 0 && archivistState.saved > 0 ? Math.round(350 * archiveConfig().scoreMultiplier) : 0;
+  archivistState.score += noLostBonus;
+  const rank = archiveRank(archivistState.score);
+  const bestKey = `commonPagesArchivistBest:${archivistState.mode}`;
+  const previousBest = Number(localStorage.getItem(bestKey) || 0);
+  if (archivistState.score > previousBest) localStorage.setItem(bestKey, String(archivistState.score));
+
+  archivistResult.innerHTML = `
+    <strong>${escapeHTML(rank)}</strong>
+    <span>Items saved: ${archivistState.saved}</span>
+    <span>Items lost: ${archivistState.lost}</span>
+    <span>Accuracy: ${accuracy}%</span>
+    <span>Highest streak: ${archivistState.bestStreak}</span>
+    <span>Final score: ${archivistState.score}${noLostBonus ? `, including ${noLostBonus} no-lost bonus` : ""}</span>
+    <span>${archivistState.score > previousBest ? "New best run for this mode." : `Best for this mode: ${previousBest}`}</span>
+  `;
+  archivistFeedback.textContent = "Run complete. Start another run whenever you are ready.";
+  renderArchivistStats();
+}
+
+function renderArchivistSetup() {
+  practiceLayout.classList.add("hidden");
+  practiceSelects.classList.add("hidden");
+  archivistGame.classList.remove("hidden");
+  resetArchivistRun();
+}
+
+function closeArchivistGame() {
+  if (archivistState.loopId) window.cancelAnimationFrame(archivistState.loopId);
+  archivistState.running = false;
+  clearArchiveItems();
+}
+
 function renderCharacterTrack() {
   if (practiceState.mode === "spanish-translate" || practiceState.mode === "writing-sprint") {
     characterTrack.innerHTML = "";
@@ -966,6 +1521,18 @@ function setPracticeItem(item = choosePracticeItem()) {
 
 function openPracticeMode(mode) {
   practiceState.mode = mode;
+  closeArchivistGame();
+  if (mode === "archivist") {
+    practiceMenu.classList.add("hidden");
+    practiceWorkbench.classList.remove("hidden");
+    renderArchivistSetup();
+    practiceWorkbench.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  practiceLayout.classList.remove("hidden");
+  practiceSelects.classList.remove("hidden");
+  archivistGame.classList.add("hidden");
   renderPracticeTopics();
   setPracticeItem();
   practiceMenu.classList.add("hidden");
@@ -974,9 +1541,13 @@ function openPracticeMode(mode) {
 }
 
 function closePracticeMode() {
+  closeArchivistGame();
   resetPracticeTimer();
   practiceWorkbench.classList.add("hidden");
   practiceMenu.classList.remove("hidden");
+  practiceLayout.classList.remove("hidden");
+  practiceSelects.classList.remove("hidden");
+  archivistGame.classList.add("hidden");
   document.querySelector("#practice").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1247,6 +1818,36 @@ practiceInput.addEventListener("input", () => {
   if (practiceState.finished) return;
   if (practiceInput.value.length) startPracticeTimer();
   renderPracticeProgress();
+});
+
+archivistMode?.addEventListener("change", () => resetArchivistRun());
+
+archivistStartButton?.addEventListener("click", () => {
+  if (archivistState.running) return;
+  startArchivistRun();
+});
+
+archivistResetButton?.addEventListener("click", () => resetArchivistRun());
+
+archivistInput?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  submitArchiveTag();
+});
+
+archivistBellButton?.addEventListener("click", () => {
+  if (!archivistState.running || archivistState.bellCharges <= 0 || archivistState.paused) return;
+  archivistState.bellCharges -= 1;
+  archivistState.paused = true;
+  archivistFeedback.textContent = "Archive Bell ringing. The shelves are paused for a moment.";
+  renderArchivistStats();
+  window.setTimeout(() => {
+    if (!archivistState.running || !archivistState.paused) return;
+    archivistState.paused = false;
+    archivistFeedback.textContent = "The bell fades. Keep shelving.";
+    archivistInput.focus();
+    renderArchivistStats();
+  }, 2500);
 });
 
 exportButton.addEventListener("click", () => {

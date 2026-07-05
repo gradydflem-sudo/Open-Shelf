@@ -6,7 +6,7 @@
     <title>Common Pages</title>
     <meta name="theme-color" content="#fffaf1" />
     <meta name="description" content="Common Pages is a public reading shelf and language practice space for essays, memoirs, fiction, notes, typing drills, and Spanish practice." />
-    <link rel="stylesheet" href="styles.css?v=20260704-public-rebuild" />
+    <link rel="stylesheet" href="styles.css?v=20260704-archivist" />
   </head>
   <body>
     <header class="topbar">
@@ -128,6 +128,11 @@
             <strong>Writing Sprint</strong>
             <span>Respond to a timed prompt and track your word count.</span>
           </button>
+          <button class="practice-card" type="button" data-practice-mode="archivist">
+            <span class="pill practice-pill">Ready</span>
+            <strong>The Rogue-lite Archivist</strong>
+            <span>Save falling archive items by typing the right category tag.</span>
+          </button>
         </div>
 
         <section class="practice-workbench hidden" id="practiceWorkbench" aria-live="polite">
@@ -163,7 +168,7 @@
             </div>
           </div>
 
-          <div class="practice-layout">
+          <div class="practice-layout" id="practiceLayout">
             <article class="prompt-panel">
               <p class="eyebrow" id="practiceModeLabel">Spanish Retype</p>
               <h3 id="practiceTitle">Type the phrase exactly.</h3>
@@ -210,6 +215,62 @@
               <div class="leaderboard-panel" id="practiceLeaderboard" aria-live="polite"></div>
             </article>
           </div>
+
+          <section class="archivist-game hidden" id="archivistGame" aria-live="polite">
+            <div class="archivist-main">
+              <div class="archivist-topline">
+                <label>
+                  <span>Run Mode</span>
+                  <select id="archivistMode">
+                    <option value="calm">Calm Mode</option>
+                    <option value="normal" selected>Normal Mode</option>
+                    <option value="archivist">Archivist Mode</option>
+                  </select>
+                </label>
+                <div class="archivist-tags" id="archivistTags"></div>
+              </div>
+
+              <div class="archivist-stats">
+                <div><span>Score</span><strong id="archivistScore">0</strong></div>
+                <div><span>Saved</span><strong id="archivistSaved">0</strong></div>
+                <div><span>Lost</span><strong id="archivistLost">0</strong></div>
+                <div><span>Streak</span><strong id="archivistStreak">0</strong></div>
+                <div><span>Time</span><strong id="archivistTime">90s</strong></div>
+              </div>
+
+              <div class="archivist-stage" id="archivistStage">
+                <div class="archive-pressure" aria-hidden="true"></div>
+                <div class="archive-start-card" id="archivistStartCard">
+                  <p class="eyebrow">Storm over the stacks</p>
+                  <h3>Read fast. Tag carefully. Save the archive.</h3>
+                  <p>Descriptions fall from the upper shelves. Type the category tag before each item reaches the bottom.</p>
+                </div>
+              </div>
+
+              <label class="archivist-command">
+                <span>Category tag</span>
+                <input id="archivistInput" type="text" autocomplete="off" spellcheck="false" placeholder="Treaty, Map, Spell..." />
+              </label>
+
+              <p class="practice-feedback" id="archivistFeedback">Choose a mode, then start a run.</p>
+              <div class="form-actions compact-actions">
+                <button class="button primary" id="archivistStartButton" type="button">Start Run</button>
+                <button class="button secondary" id="archivistBellButton" type="button" disabled>Archive Bell</button>
+                <button class="button secondary" id="archivistResetButton" type="button">Reset Run</button>
+              </div>
+            </div>
+
+            <aside class="archivist-side">
+              <div class="archivist-panel">
+                <h3>Run Upgrades</h3>
+                <div id="archivistUpgrades" class="upgrade-list"></div>
+              </div>
+              <div class="archivist-panel">
+                <h3>Result</h3>
+                <div id="archivistResult" class="archivist-result">No run completed yet.</div>
+              </div>
+            </aside>
+          </section>
         </section>
       </section>
 
@@ -296,7 +357,7 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="practice-data.js?v=20260704-public-rebuild"></script>
-    <script src="app.js?v=20260704-public-rebuild"></script>
+    <script src="practice-data.js?v=20260704-archivist"></script>
+    <script src="app.js?v=20260704-archivist"></script>
   </body>
 </html>
