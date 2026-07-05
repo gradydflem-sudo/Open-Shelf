@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Common Pages</title>
+    <meta name="theme-color" content="#fffaf1" />
+    <meta name="description" content="Common Pages is a public reading shelf and language practice space for essays, memoirs, fiction, notes, typing drills, and Spanish practice." />
+    <link rel="stylesheet" href="styles.css?v=20260704-practice-lab" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="Common Pages home">
+        <span class="brand-mark">CP</span>
+        <span>Common Pages</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#read">Read</a>
+        <a href="#practice">Practice</a>
+        <a href="#submit">Publish</a>
+        <a href="#library" id="libraryNavLink">Library</a>
+      </nav>
+      <form class="account-form" id="accountForm">
+        <label>
+          <span>Name</span>
+          <input id="accountNameInput" type="text" placeholder="Your name" />
+        </label>
+        <label>
+          <span>Email</span>
+          <input id="accountEmailInput" type="email" placeholder="you@example.com" />
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="accountPasswordInput" type="password" placeholder="Password" />
+        </label>
+        <button class="button secondary" id="accountButton" type="submit">Sign in</button>
+        <p class="account-message" id="accountMessage"></p>
+      </form>
+      <div class="account-card hidden" id="accountCard">
+        <span id="accountRole">Guest</span>
+        <strong id="accountName">Reading as guest</strong>
+        <button class="text-button" id="signOutButton" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="home">
+        <div class="hero-media" aria-hidden="true">
+          <div class="paper paper-a"></div>
+          <div class="paper paper-b"></div>
+          <div class="paper paper-c"></div>
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Independent writing, gathered with care</p>
+          <h1>Common Pages</h1>
+          <p class="deck">
+            A home for essays, memoirs, fiction, and notes from you and the people you love to read.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#submit">Publish a Piece</a>
+            <a class="button secondary" href="#read">Start Reading</a>
+            <a class="button secondary" href="#practice">Practice</a>
+            <button class="button secondary" id="shareButton" type="button">Text Link</button>
+          </div>
+          <p class="share-status" id="shareStatus" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="read-shell" id="read" aria-label="Public reading shelf">
+        <aside class="sidebar">
+          <div class="section-head compact">
+            <p class="eyebrow">Browse</p>
+            <h2>Categories</h2>
+          </div>
+          <div class="category-list" id="categoryList"></div>
+        </aside>
+
+        <section class="feed" aria-live="polite">
+          <div class="section-head">
+            <p class="eyebrow" id="activeCategoryLabel">All writing</p>
+            <h2 id="feedTitle">Latest Pieces</h2>
+          </div>
+          <div class="tools-row">
+            <label class="search-box">
+              <span>Search</span>
+              <input id="searchInput" type="search" placeholder="Title, author, or text" />
+            </label>
+            <select id="sortSelect" aria-label="Sort pieces">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A-Z</option>
+            </select>
+          </div>
+          <div class="post-grid" id="postGrid"></div>
+        </section>
+      </section>
+
+      <section class="reader-panel hidden" id="readerPanel" aria-live="polite">
+        <button class="text-button" id="closeReader" type="button">Back to shelf</button>
+        <article class="reader-article" id="readerArticle"></article>
+      </section>
+
+      <section class="practice-band" id="practice">
+        <div class="section-head practice-head">
+          <p class="eyebrow">Language Lab</p>
+          <h2>Practice</h2>
+          <p class="section-note">Build writing, typing, and language skills through short daily exercises.</p>
+        </div>
+
+        <div class="practice-menu" id="practiceMenu" aria-label="Practice activities">
+          <button class="practice-card" type="button" data-practice-mode="spanish-retype">
+            <span class="pill practice-pill">Ready</span>
+            <strong>Spanish Retype</strong>
+            <span>Type Spanish phrases quickly and accurately.</span>
+          </button>
+          <button class="practice-card" type="button" data-practice-mode="typing">
+            <span class="pill practice-pill">Ready</span>
+            <strong>Typing Practice</strong>
+            <span>Improve speed and accuracy with writing-based drills.</span>
+          </button>
+          <button class="practice-card disabled" type="button" disabled>
+            <span class="pill practice-pill muted">Soon</span>
+            <strong>Spanish Translation</strong>
+            <span>Translate Spanish phrases into English.</span>
+          </button>
+          <button class="practice-card disabled" type="button" disabled>
+            <span class="pill practice-pill muted">Soon</span>
+            <strong>Writing Sprint</strong>
+            <span>Respond to a timed prompt and track your word count.</span>
+          </button>
+        </div>
+
+        <section class="practice-workbench hidden" id="practiceWorkbench" aria-live="polite">
+          <div class="practice-toolbar">
+            <button class="text-button" id="practiceBackButton" type="button">Back to Practice</button>
+            <div class="practice-selects">
+              <label>
+                <span>Difficulty</span>
+                <select id="practiceDifficulty">
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </label>
+              <label>
+                <span>Topic</span>
+                <select id="practiceTopic"></select>
+              </label>
+            </div>
+          </div>
+
+          <div class="practice-layout">
+            <article class="prompt-panel">
+              <p class="eyebrow" id="practiceModeLabel">Spanish Retype</p>
+              <h3 id="practiceTitle">Type the phrase exactly.</h3>
+              <div class="prompt-box" id="practicePrompt"></div>
+              <div class="character-track" id="characterTrack" aria-label="Character feedback"></div>
+            </article>
+
+            <article class="practice-panel">
+              <div class="metrics-grid">
+                <div>
+                  <span>Time</span>
+                  <strong id="practiceTime">0.0s</strong>
+                </div>
+                <div>
+                  <span>WPM</span>
+                  <strong id="practiceWpm">0</strong>
+                </div>
+                <div>
+                  <span>Accuracy</span>
+                  <strong id="practiceAccuracy">100%</strong>
+                </div>
+                <div>
+                  <span>Mistakes</span>
+                  <strong id="practiceMistakes">0</strong>
+                </div>
+              </div>
+
+              <label>
+                <span id="practiceInputLabel">Your typing</span>
+                <textarea id="practiceInput" rows="6" autocomplete="off" spellcheck="false"></textarea>
+              </label>
+
+              <p class="practice-feedback" id="practiceFeedback">Start typing when you are ready.</p>
+              <p class="practice-best" id="practiceBest"></p>
+
+              <div class="form-actions compact-actions">
+                <button class="button primary" id="practiceStartButton" type="button">Start</button>
+                <button class="button secondary" id="practiceNextButton" type="button">Another Prompt</button>
+                <button class="button secondary" id="practiceRetryButton" type="button">Retry</button>
+              </div>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="publish-band" id="submit">
+        <div class="section-head">
+          <p class="eyebrow">Publish</p>
+          <h2>Add a Piece</h2>
+        </div>
+        <p class="section-note" id="publishNote"></p>
+        <div class="account-gate hidden" id="accountGate">
+          <strong>Create an account to submit writing.</strong>
+          <span>Guests can read everything that is already published. Signed-in readers can submit pieces for owner approval.</span>
+        </div>
+
+        <form class="publish-form" id="postForm">
+          <div class="form-grid">
+            <label>
+              <span>Title</span>
+              <input id="titleInput" name="title" required maxlength="120" />
+            </label>
+            <label>
+              <span>Author</span>
+              <input id="authorInput" name="author" required maxlength="80" />
+            </label>
+            <label>
+              <span>Category</span>
+              <select id="categoryInput" name="category" required></select>
+            </label>
+          </div>
+
+          <label class="file-drop" for="fileInput">
+            <span>Upload .txt or .md</span>
+            <strong id="fileName">Choose file</strong>
+            <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" />
+          </label>
+
+          <label>
+            <span>Writing</span>
+            <textarea id="bodyInput" name="body" required rows="14"></textarea>
+          </label>
+
+          <label class="check-row">
+            <input id="substackInput" type="checkbox" />
+            <span>After saving, help me publish this on Substack too.</span>
+          </label>
+          <p class="substack-note" id="substackNote" aria-live="polite"></p>
+
+          <div class="form-actions">
+            <button class="button primary" id="submitButton" type="submit">Publish</button>
+            <button class="button secondary" id="clearForm" type="button">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="library-band" id="library">
+        <div class="section-head">
+          <p class="eyebrow">Manage</p>
+          <h2>Library</h2>
+        </div>
+        <div class="library-actions">
+          <button class="button secondary" id="exportButton" type="button">Export</button>
+          <label class="button secondary import-button">
+            Import
+            <input id="importInput" type="file" accept="application/json,.json" />
+          </label>
+          <button class="button danger" id="resetButton" type="button">Reset Demo</button>
+        </div>
+        <div class="library-list" id="libraryList"></div>
+      </section>
+    </main>
+
+    <template id="postCardTemplate">
+      <article class="post-card">
+        <button class="card-button" type="button">
+          <div class="meta-row">
+            <span class="pill category-pill"></span>
+            <span class="date"></span>
+          </div>
+          <h3></h3>
+          <p class="excerpt"></p>
+          <div class="byline"></div>
+        </button>
+      </article>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="practice-data.js?v=20260704-practice-lab"></script>
+    <script src="app.js?v=20260704-practice-lab"></script>
+  </body>
+</html>
