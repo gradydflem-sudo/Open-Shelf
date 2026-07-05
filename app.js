@@ -60,6 +60,10 @@ const practiceCards = document.querySelectorAll("[data-practice-mode]");
 const practiceBackButton = document.querySelector("#practiceBackButton");
 const practiceDifficulty = document.querySelector("#practiceDifficulty");
 const practiceTopic = document.querySelector("#practiceTopic");
+const practiceTimerControl = document.querySelector("#practiceTimerControl");
+const practiceTimer = document.querySelector("#practiceTimer");
+const practiceCustomTimerControl = document.querySelector("#practiceCustomTimerControl");
+const practiceCustomTimer = document.querySelector("#practiceCustomTimer");
 const practiceModeLabel = document.querySelector("#practiceModeLabel");
 const practiceTitle = document.querySelector("#practiceTitle");
 const practicePrompt = document.querySelector("#practicePrompt");
@@ -587,6 +591,23 @@ function stopPracticeTimer() {
   practiceState.timerId = null;
 }
 
+function getWritingSprintSeconds() {
+  if (!practiceTimer || practiceTimer.value !== "custom") return Number(practiceTimer?.value || WRITING_SPRINT_SECONDS);
+  const minutes = Number(practiceCustomTimer?.value || 1);
+  return Math.max(60, Math.min(3600, minutes * 60));
+}
+
+function formatSprintLength(seconds = getWritingSprintSeconds()) {
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? "one-minute" : `${minutes}-minute`;
+}
+
+function renderPracticeTimerControls() {
+  const isSprint = practiceState.mode === "writing-sprint";
+  practiceTimerControl?.classList.toggle("hidden", !isSprint);
+  practiceCustomTimerControl?.classList.toggle("hidden", !isSprint || practiceTimer?.value !== "custom");
+}
+
 function resetPracticeTimer() {
   stopPracticeTimer();
   practiceState.startedAt = null;
@@ -608,12 +629,12 @@ function getPracticeElapsed() {
 }
 
 function getWritingSprintRemaining() {
-  return Math.max(0, WRITING_SPRINT_SECONDS - getPracticeElapsed());
+  return Math.max(0, getWritingSprintSeconds() - getPracticeElapsed());
 }
 
 function measurePractice(input, target) {
   if (practiceState.mode === "writing-sprint") {
-    const elapsed = Math.min(Math.max(getPracticeElapsed(), 0.01), WRITING_SPRINT_SECONDS);
+    const elapsed = Math.min(Math.max(getPracticeElapsed(), 0.01), getWritingSprintSeconds());
     const wordCount = input.trim() ? input.trim().split(/\s+/).length : 0;
     return {
       typed: input.length,
@@ -826,7 +847,7 @@ function completePracticeRound(result) {
     practiceResults.classList.remove("hidden");
     practiceResults.innerHTML = `
       <strong>Writing sprint complete.</strong>
-      <span>${result.wordCount || 0} words in one minute.</span>
+      <span>${result.wordCount || 0} words in ${formatSprintLength(getWritingSprintSeconds())} sprint.</span>
       <span>No leaderboard for writing sprints. This is a draft you can revise or publish.</span>
     `;
     if (body && window.confirm("Would you like to move this writing sprint into the Publish form?")) {
@@ -862,7 +883,7 @@ function completePracticeRound(result) {
 
 function renderPracticeProgress() {
   if (!practiceState.target) {
-    practiceTime.textContent = practiceState.mode === "writing-sprint" ? `${WRITING_SPRINT_SECONDS}.0s` : "0.0s";
+    practiceTime.textContent = practiceState.mode === "writing-sprint" ? `${getWritingSprintSeconds().toFixed(1)}s` : "0.0s";
     practiceWpm.textContent = "0";
     practiceAccuracy.textContent = practiceState.mode === "writing-sprint" ? "Sprint" : "100%";
     practiceMistakes.textContent = "0";
@@ -882,7 +903,7 @@ function renderPracticeProgress() {
   }
 
   if (!result.typed) {
-    practiceFeedback.textContent = practiceState.mode === "writing-sprint" ? "Start the one-minute timer, then write until time runs out." : "Start typing when you are ready.";
+    practiceFeedback.textContent = practiceState.mode === "writing-sprint" ? `Start the ${formatSprintLength()} timer, then write until time runs out.` : "Start typing when you are ready.";
   } else if (practiceState.mode === "writing-sprint") {
     practiceFeedback.textContent = `${result.wordCount || 0} words so far. The sprint saves when the timer reaches zero.`;
   } else if (practiceState.mode === "spanish-translate" && result.firstMistake === -1) {
@@ -916,6 +937,7 @@ function setPracticeItem(item = choosePracticeItem()) {
   practiceInputLabel.textContent = copy.inputLabel;
   practiceFinishButton.classList.toggle("hidden", practiceState.mode !== "writing-sprint");
   practiceLeaderboard.classList.toggle("hidden", !isLeaderboardMode());
+  renderPracticeTimerControls();
   if (practiceMetricLabels.length >= 4) {
     practiceMetricLabels[0].textContent = practiceState.mode === "writing-sprint" ? "Time Left" : "Time";
     practiceMetricLabels[1].textContent = "WPM";
@@ -936,7 +958,7 @@ function setPracticeItem(item = choosePracticeItem()) {
 
   practicePrompt.textContent = practiceState.target;
   practiceInput.disabled = false;
-  practiceFeedback.textContent = practiceState.mode === "writing-sprint" ? "Start the one-minute timer, then write until time runs out." : "Start typing when you are ready.";
+  practiceFeedback.textContent = practiceState.mode === "writing-sprint" ? `Start the ${formatSprintLength()} timer, then write until time runs out.` : "Start typing when you are ready.";
   renderPracticeBest();
   renderPracticeProgress();
   renderPracticeLeaderboard();
@@ -1184,6 +1206,15 @@ practiceDifficulty.addEventListener("change", () => {
 
 practiceTopic.addEventListener("change", () => setPracticeItem());
 
+practiceTimer?.addEventListener("change", () => {
+  renderPracticeTimerControls();
+  setPracticeItem(practiceState.item);
+});
+
+practiceCustomTimer?.addEventListener("change", () => {
+  setPracticeItem(practiceState.item);
+});
+
 practiceStartButton.addEventListener("click", () => {
   startPracticeTimer();
   practiceInput.focus();
@@ -1192,7 +1223,7 @@ practiceStartButton.addEventListener("click", () => {
 practiceFinishButton.addEventListener("click", () => {
   if (practiceState.mode !== "writing-sprint" || practiceState.finished) return;
   if (!practiceState.startedAt) {
-    practiceFeedback.textContent = "Start the one-minute timer first.";
+    practiceFeedback.textContent = `Start the ${formatSprintLength()} timer first.`;
     practiceInput.focus();
     return;
   }

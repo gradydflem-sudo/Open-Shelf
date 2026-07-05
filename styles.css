@@ -219,15 +219,16 @@ a {
 }
 
 .hero-copy {
-  max-width: 610px;
+  max-width: 760px;
 }
 
 .hero-copy h1 {
   max-width: 100%;
-  font-size: clamp(4rem, 8vw, 7rem);
+  font-size: clamp(3.8rem, 7vw, 6.4rem);
   line-height: 0.9;
   overflow-wrap: normal;
   word-break: normal;
+  text-wrap: balance;
 }
 
 .eyebrow {
@@ -669,9 +670,14 @@ textarea:focus {
 
 .practice-selects {
   display: grid;
-  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
   gap: 12px;
-  min-width: min(100%, 420px);
+  min-width: min(100%, 720px);
+}
+
+.timer-control input {
+  width: 100%;
+  min-height: 48px;
 }
 
 .practice-layout {
