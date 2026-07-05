@@ -98,5 +98,37 @@ window.CommonPagesPracticeData = {
       difficulty: "advanced",
       category: "civic vocabulary"
     }
+  ],
+  writingPrompts: [
+    {
+      text: "Write about a moment when you changed your mind.",
+      difficulty: "beginner",
+      category: "reflection"
+    },
+    {
+      text: "Describe a room so clearly that a reader can feel where the light is coming from.",
+      difficulty: "beginner",
+      category: "description"
+    },
+    {
+      text: "Argue for one small change that would make school more humane.",
+      difficulty: "intermediate",
+      category: "argument"
+    },
+    {
+      text: "Write a scene where two people avoid saying what they mean.",
+      difficulty: "intermediate",
+      category: "fiction"
+    },
+    {
+      text: "Explain a complicated public issue without slogans, exaggeration, or easy villains.",
+      difficulty: "advanced",
+      category: "civic writing"
+    },
+    {
+      text: "Begin with an ordinary object and use it to reveal a larger memory.",
+      difficulty: "advanced",
+      category: "memoir"
+    }
   ]
 };
