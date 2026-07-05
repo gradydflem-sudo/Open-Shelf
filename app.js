@@ -98,11 +98,14 @@ const archivistLost = document.querySelector("#archivistLost");
 const archivistStreak = document.querySelector("#archivistStreak");
 const archivistTime = document.querySelector("#archivistTime");
 const archivistStartButton = document.querySelector("#archivistStartButton");
+const archivistTutorialButton = document.querySelector("#archivistTutorialButton");
 const archivistBellButton = document.querySelector("#archivistBellButton");
 const archivistResetButton = document.querySelector("#archivistResetButton");
 const archivistUpgrades = document.querySelector("#archivistUpgrades");
 const archivistResult = document.querySelector("#archivistResult");
+const archivistTutorial = document.querySelector("#archivistTutorial");
 const tycoonGame = document.querySelector("#tycoonGame");
+const tycoonTutorialButton = document.querySelector("#tycoonTutorialButton");
 const tycoonNewAssignment = document.querySelector("#tycoonNewAssignment");
 const tycoonResetProgress = document.querySelector("#tycoonResetProgress");
 const tycoonViews = document.querySelector("#tycoonViews");
@@ -119,6 +122,7 @@ const tycoonFeedback = document.querySelector("#tycoonFeedback");
 const tycoonPublish = document.querySelector("#tycoonPublish");
 const tycoonMoveToPublish = document.querySelector("#tycoonMoveToPublish");
 const tycoonResult = document.querySelector("#tycoonResult");
+const tycoonTutorial = document.querySelector("#tycoonTutorial");
 const tycoonShop = document.querySelector("#tycoonShop");
 const tycoonLog = document.querySelector("#tycoonLog");
 const ownerOnlyControls = [
@@ -276,6 +280,30 @@ const ARCHIVIST_UPGRADES = [
     apply() {
       archivistState.hints = true;
     }
+  },
+  {
+    id: "steady-ladder",
+    name: "Steady Ladder",
+    text: "One wrong shelf costs only two seconds this run.",
+    apply() {
+      archivistState.wrongPenalty = 2;
+    }
+  },
+  {
+    id: "streak-seal",
+    name: "Streak Seal",
+    text: "Streak bonuses grow faster for careful cataloging.",
+    apply() {
+      archivistState.streakMultiplier += 0.45;
+    }
+  },
+  {
+    id: "theme-index",
+    name: "Theme Index",
+    text: "Archive themes become worth a small score bonus.",
+    apply() {
+      archivistState.themeBonus = true;
+    }
   }
 ];
 const ARCHIVIST_CLUES = {
@@ -380,6 +408,79 @@ const TYCOON_UPGRADES = [
     name: "Serial Analytics",
     cost: 480,
     text: "Turns consistent work into more revenue."
+  },
+  {
+    id: "workshop-program",
+    name: "Workshop Program",
+    cost: 540,
+    text: "Stronger constraint work earns extra reputation.",
+    requires: "editorial-calendar"
+  },
+  {
+    id: "civic-imprint",
+    name: "Civic Imprint",
+    cost: 650,
+    text: "Unlocks higher attention for civic, public, and newsroom stories.",
+    requires: "research-notebook"
+  },
+  {
+    id: "translation-circle",
+    name: "Translation Circle",
+    cost: 720,
+    text: "Language-learning assignments gain more subscribers.",
+    requires: "translation-desk"
+  },
+  {
+    id: "festival-booth",
+    name: "Festival Booth",
+    cost: 900,
+    text: "Special events become more valuable after the platform matures.",
+    requires: "newsletter-system"
+  }
+];
+const ARCHIVIST_TUTORIAL_STEPS = [
+  {
+    title: "Read the description.",
+    body: "You are an archivist trying to save items from a collapsing magical archive. Each falling item has clues. Your job is to type the correct category before it disappears.",
+    sample: "An unsigned agreement sealed with green wax, describing the border between two mountain kingdoms.",
+    answer: "Treaty",
+    explanation: "This is a Treaty because it describes an agreement between political groups, borders, peace terms, alliances, or legal promises."
+  },
+  {
+    title: "Look for clue words, not just vibes.",
+    body: "A crown, palace, decree, king, or queen often points to Royal. A chart, route, compass, border, or hidden path often points to Map.",
+    sample: "A coastal chart with reefs, compass roses, and a red route to a hidden harbor.",
+    answer: "Map",
+    explanation: "Correct. Maps usually describe routes, borders, locations, paths, or geography."
+  },
+  {
+    title: "Use Calm Mode while learning.",
+    body: "Calm Mode keeps categories visible, moves slowly, and uses easier descriptions. Normal and Archivist modes hide more information, move faster, and reward memory.",
+    sample: "A leather journal marked with dates, weather, and private worries about leaving home.",
+    answer: "Diary",
+    explanation: "Correct. Diaries and journals often include dated entries, private thoughts, routines, weather, or confessions."
+  }
+];
+const TYCOON_TUTORIAL_STEPS = [
+  {
+    title: "The loop",
+    body: "You run a small fictional publishing house. Complete short assignments to gain views, subscribers, revenue, and reputation.",
+    action: "start"
+  },
+  {
+    title: "The first assignment",
+    body: "A challenge gives you a genre, trope, audience, and three required words. The game rewards measurable constraints: word count, required words, speed, and variety.",
+    action: "assignment"
+  },
+  {
+    title: "Publish and read the results",
+    body: "After publishing, check word count, required words, time, views, revenue, subscribers, reputation, and the upgrade suggestion.",
+    action: "publish"
+  },
+  {
+    title: "Upgrade the house",
+    body: "Spend revenue on upgrades to unlock new genres, improve reach, recover energy, and make future assignments richer.",
+    action: "upgrade"
   }
 ];
 let practiceState = {
@@ -416,11 +517,16 @@ let archivistState = {
   hints: false,
   autoSaveCharges: 0,
   bellCharges: 0,
+  wrongPenalty: 4,
+  streakMultiplier: 1,
+  themeBonus: false,
   upgrades: [],
   nextUpgradeAt: 4
 };
 let tycoonState = null;
 let tycoonTimerId = null;
+let archivistTutorialStep = 0;
+let tycoonTutorialStep = 0;
 
 function isOwner() {
   return account?.email?.toLowerCase() === OWNER_EMAIL;
@@ -1101,6 +1207,9 @@ function resetArchivistRun({ keepMode = true } = {}) {
     hints: false,
     autoSaveCharges: 0,
     bellCharges: 0,
+    wrongPenalty: 4,
+    streakMultiplier: 1,
+    themeBonus: false,
     upgrades: [],
     nextUpgradeAt: 4
   };
@@ -1155,10 +1264,11 @@ function scoreArchiveItem(item, auto = false) {
   const stageHeight = Math.max(1, archivistStage.clientHeight || 380);
   const progress = Math.min(1, Math.max(0, item.y / stageHeight));
   const fastBonus = Math.round((1 - progress) * 65);
-  const streakBonus = archivistState.streak * 8;
+  const streakBonus = Math.round(archivistState.streak * 8 * archivistState.streakMultiplier);
   const hardBonus = item.tier * 18;
+  const themeBonus = archivistState.themeBonus ? 24 : 0;
   const autoPenalty = auto ? 35 : 0;
-  return Math.max(20, Math.round((100 + fastBonus + streakBonus + hardBonus - autoPenalty) * archiveConfig().scoreMultiplier));
+  return Math.max(20, Math.round((100 + fastBonus + streakBonus + hardBonus + themeBonus - autoPenalty) * archiveConfig().scoreMultiplier));
 }
 
 function removeArchiveItem(item) {
@@ -1275,8 +1385,8 @@ function submitArchiveTag() {
 
   archivistState.wrong += 1;
   archivistState.streak = 0;
-  archivistState.timeLeft = Math.max(0, archivistState.timeLeft - 4);
-  archivistFeedback.textContent = "Wrong shelf. Four seconds lost; keep reading.";
+  archivistState.timeLeft = Math.max(0, archivistState.timeLeft - archivistState.wrongPenalty);
+  archivistFeedback.textContent = `Wrong shelf. ${archivistState.wrongPenalty} seconds lost; keep reading.`;
   archivistInput.value = "";
   renderArchivistStats();
 }
@@ -1287,7 +1397,7 @@ function availableArchivistUpgrades() {
     if (upgrade.id === "index-cards" && archivistState.indexCards) return false;
     if (upgrade.id === "better-lantern" && archivistState.lantern) return false;
     if (upgrade.id === "magnifying-glass" && archivistState.hints) return false;
-    return !used.has(upgrade.name) || ["Extra Shelf", "Apprentice Helper", "Archive Bell", "Slower Scroll"].includes(upgrade.name);
+    return !used.has(upgrade.name) || ["Extra Shelf", "Apprentice Helper", "Archive Bell", "Slower Scroll", "Streak Seal"].includes(upgrade.name);
   });
 }
 
@@ -1363,10 +1473,73 @@ function finishArchivistRun() {
   renderArchivistStats();
 }
 
+function renderArchivistTutorial() {
+  if (!archivistTutorial) return;
+  const step = ARCHIVIST_TUTORIAL_STEPS[archivistTutorialStep] || ARCHIVIST_TUTORIAL_STEPS[0];
+  archivistTutorial.classList.remove("hidden");
+  archivistTutorial.innerHTML = `
+    <div class="tutorial-head">
+      <span>Archivist Tutorial ${archivistTutorialStep + 1}/${ARCHIVIST_TUTORIAL_STEPS.length}</span>
+      <button class="text-button" type="button" data-close-archivist-tutorial>Close</button>
+    </div>
+    <h3>${escapeHTML(step.title)}</h3>
+    <p>${escapeHTML(step.body)}</p>
+    <div class="tutorial-tags">
+      ${["Cursed", "Royal", "Scientific", "Legal", "Map", "Diary", "Treaty"].map((tag) => `<span>${escapeHTML(tag)}</span>`).join("")}
+    </div>
+    <div class="tutorial-example">
+      <strong>Practice item</strong>
+      <p>${escapeHTML(step.sample)}</p>
+      <button class="button secondary" type="button" data-try-archive-answer="${escapeHTML(step.answer)}">Type ${escapeHTML(step.answer)}</button>
+    </div>
+    <p class="tutorial-feedback">${escapeHTML(step.explanation)}</p>
+    <div class="form-actions compact-actions">
+      <button class="button secondary" type="button" data-archivist-tutorial-prev ${archivistTutorialStep === 0 ? "disabled" : ""}>Back</button>
+      <button class="button primary" type="button" data-archivist-tutorial-next>${archivistTutorialStep >= ARCHIVIST_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next"}</button>
+    </div>
+  `;
+  archivistTutorial.querySelector("[data-close-archivist-tutorial]")?.addEventListener("click", hideArchivistTutorial);
+  archivistTutorial.querySelector("[data-try-archive-answer]")?.addEventListener("click", (event) => {
+    archivistInput.disabled = false;
+    archivistInput.value = event.currentTarget.dataset.tryArchiveAnswer;
+    archivistFeedback.textContent = step.explanation;
+    archivistInput.focus();
+  });
+  archivistTutorial.querySelector("[data-archivist-tutorial-prev]")?.addEventListener("click", () => {
+    archivistTutorialStep = Math.max(0, archivistTutorialStep - 1);
+    renderArchivistTutorial();
+  });
+  archivistTutorial.querySelector("[data-archivist-tutorial-next]")?.addEventListener("click", () => {
+    if (archivistTutorialStep >= ARCHIVIST_TUTORIAL_STEPS.length - 1) {
+      hideArchivistTutorial();
+      archivistMode.value = "calm";
+      resetArchivistRun();
+      archivistFeedback.textContent = "Tutorial complete. Calm Mode is selected so the category cards stay visible.";
+      return;
+    }
+    archivistTutorialStep += 1;
+    renderArchivistTutorial();
+  });
+}
+
+function showArchivistTutorial() {
+  if (archivistState.running) return;
+  archivistTutorialStep = 0;
+  archivistMode.value = "calm";
+  resetArchivistRun();
+  renderArchivistTutorial();
+}
+
+function hideArchivistTutorial() {
+  archivistTutorial?.classList.add("hidden");
+  if (!archivistState.running) archivistInput.disabled = true;
+}
+
 function renderArchivistSetup() {
   practiceLayout.classList.add("hidden");
   practiceSelects.classList.add("hidden");
   archivistGame.classList.remove("hidden");
+  hideArchivistTutorial();
   resetArchivistRun();
 }
 
@@ -1470,7 +1643,7 @@ function chooseTycoonGenre() {
 function chooseTycoonEvent() {
   const data = microFictionData();
   const available = data.specialEvents.filter((event) => (event.unlockAt || 0) <= tycoonState.assignments);
-  const eventChance = 0.13 + (hasTycoonUpgrade("editorial-calendar") ? 0.16 : 0);
+  const eventChance = 0.13 + (hasTycoonUpgrade("editorial-calendar") ? 0.16 : 0) + (hasTycoonUpgrade("festival-booth") ? 0.1 : 0);
   if (!available.length || Math.random() > eventChance) return null;
   return available[Math.floor(Math.random() * available.length)];
 }
@@ -1607,6 +1780,93 @@ function renderTycoon() {
   updateTycoonLiveStats();
 }
 
+function tutorialTycoonChallenge() {
+  return {
+    id: "tutorial-first-assignment",
+    genre: "Fantasy",
+    rarity: "tutorial",
+    trope: "Hidden Door",
+    audience: "young readers",
+    words: ["candle", "river", "secret"],
+    event: { name: "Tutorial Assignment", text: "A guided first assignment with a simple scoring target.", multiplier: 1 },
+    targetWords: 100
+  };
+}
+
+function renderTycoonTutorial() {
+  if (!tycoonTutorial) return;
+  const step = TYCOON_TUTORIAL_STEPS[tycoonTutorialStep] || TYCOON_TUTORIAL_STEPS[0];
+  tycoonTutorial.classList.remove("hidden");
+  tycoonTutorial.innerHTML = `
+    <div class="tutorial-head">
+      <span>Tycoon Tutorial ${tycoonTutorialStep + 1}/${TYCOON_TUTORIAL_STEPS.length}</span>
+      <button class="text-button" type="button" data-close-tycoon-tutorial>Close</button>
+    </div>
+    <h3>${escapeHTML(step.title)}</h3>
+    <p>${escapeHTML(step.body)}</p>
+    <div class="tutorial-example">
+      <strong>First assignment</strong>
+      <p>Genre: Fantasy · Trope: Hidden Door · Audience: young readers · Required words: candle, river, secret · Goal: around 100 words.</p>
+    </div>
+    <div class="form-actions compact-actions">
+      ${step.action === "assignment" ? '<button class="button secondary" type="button" data-tycoon-tutorial-assignment>Load Tutorial Assignment</button>' : ""}
+      ${step.action === "publish" ? '<button class="button secondary" type="button" data-tycoon-tutorial-draft>Add Sample Draft</button>' : ""}
+      ${step.action === "upgrade" ? '<button class="button secondary" type="button" data-tycoon-tutorial-upgrade>Highlight First Upgrade</button>' : ""}
+      <button class="button secondary" type="button" data-tycoon-tutorial-prev ${tycoonTutorialStep === 0 ? "disabled" : ""}>Back</button>
+      <button class="button primary" type="button" data-tycoon-tutorial-next>${tycoonTutorialStep >= TYCOON_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next"}</button>
+    </div>
+  `;
+  tycoonTutorial.querySelector("[data-close-tycoon-tutorial]")?.addEventListener("click", hideTycoonTutorial);
+  tycoonTutorial.querySelector("[data-tycoon-tutorial-prev]")?.addEventListener("click", () => {
+    tycoonTutorialStep = Math.max(0, tycoonTutorialStep - 1);
+    renderTycoonTutorial();
+  });
+  tycoonTutorial.querySelector("[data-tycoon-tutorial-next]")?.addEventListener("click", () => {
+    if (tycoonTutorialStep >= TYCOON_TUTORIAL_STEPS.length - 1) {
+      hideTycoonTutorial();
+      tycoonFeedback.textContent = "Tutorial complete. Write stories, gain readers, buy upgrades, and unlock harder prompts.";
+      return;
+    }
+    tycoonTutorialStep += 1;
+    renderTycoonTutorial();
+  });
+  tycoonTutorial.querySelector("[data-tycoon-tutorial-assignment]")?.addEventListener("click", () => {
+    loadTycoonState();
+    stopTycoonTimer();
+    tycoonState.challenge = tutorialTycoonChallenge();
+    tycoonState.elapsed = 0;
+    tycoonDraft.value = "";
+    tycoonFeedback.textContent = "Tutorial assignment loaded. Write around 100 words and include candle, river, and secret.";
+    saveTycoonState();
+    renderTycoon();
+    tycoonDraft.focus();
+  });
+  tycoonTutorial.querySelector("[data-tycoon-tutorial-draft]")?.addEventListener("click", () => {
+    loadTycoonState();
+    if (!tycoonState.challenge) tycoonState.challenge = tutorialTycoonChallenge();
+    tycoonDraft.value = "Mara found the hidden door behind the school stage after the last candle went out. Beyond it, a moonlit river moved under the floorboards, carrying paper boats with secret names. She wanted to call a teacher, but the nearest boat unfolded itself and showed her own handwriting. It said: Do not panic. This is where lost stories wait. Mara stepped through, holding the candle stub like a tiny sun.";
+    tycoonState.elapsed = 74;
+    tycoonState.startedAt = null;
+    tycoonFeedback.textContent = "Sample draft added. You can publish it or replace it with your own.";
+    saveTycoonState();
+    renderTycoon();
+  });
+  tycoonTutorial.querySelector("[data-tycoon-tutorial-upgrade]")?.addEventListener("click", () => {
+    loadTycoonState();
+    tycoonFeedback.textContent = "The first upgrade is Organized Desk. It costs $45 and makes each story build reputation more steadily.";
+    renderTycoonShop();
+  });
+}
+
+function showTycoonTutorial() {
+  tycoonTutorialStep = 0;
+  renderTycoonTutorial();
+}
+
+function hideTycoonTutorial() {
+  tycoonTutorial?.classList.add("hidden");
+}
+
 function newTycoonAssignment() {
   loadTycoonState();
   stopTycoonTimer();
@@ -1645,14 +1905,18 @@ function tycoonUpgradeMultiplier(kind) {
     if (hasTycoonUpgrade("cover-designer")) multiplier += 0.3;
     if (hasTycoonUpgrade("vintage-oak-desk")) multiplier += 0.12;
     if (hasTycoonUpgrade("legendary-author-desk")) multiplier += 0.25;
+    if (hasTycoonUpgrade("civic-imprint")) multiplier += 0.18;
+    if (hasTycoonUpgrade("festival-booth")) multiplier += 0.12;
   }
   if (kind === "subscribers") {
     if (hasTycoonUpgrade("newsletter-system")) multiplier += 0.45;
     if (hasTycoonUpgrade("editors-desk")) multiplier += 0.18;
+    if (hasTycoonUpgrade("translation-circle")) multiplier += 0.22;
   }
   if (kind === "revenue") {
     if (hasTycoonUpgrade("serial-analytics")) multiplier += 0.4;
     if (hasTycoonUpgrade("legendary-author-desk")) multiplier += 0.25;
+    if (hasTycoonUpgrade("festival-booth")) multiplier += 0.18;
   }
   return multiplier;
 }
@@ -1702,6 +1966,7 @@ function publishTycoonStory() {
   let reputationGained = Math.max(1, Math.round(score / 24));
   if (hasTycoonUpgrade("organized-desk")) reputationGained += 1;
   if (hasTycoonUpgrade("editors-desk")) reputationGained += 1;
+  if (hasTycoonUpgrade("workshop-program") && score >= 82) reputationGained += 2;
 
   tycoonState.views += viewsEarned;
   tycoonState.subscribers += subscribersGained;
@@ -1784,6 +2049,7 @@ function renderTycoonSetup() {
   practiceSelects.classList.add("hidden");
   archivistGame.classList.add("hidden");
   tycoonGame.classList.remove("hidden");
+  hideTycoonTutorial();
   renderTycoon();
 }
 
@@ -2361,6 +2627,7 @@ practiceInput.addEventListener("input", () => {
 });
 
 archivistMode?.addEventListener("change", () => resetArchivistRun());
+archivistTutorialButton?.addEventListener("click", showArchivistTutorial);
 
 archivistStartButton?.addEventListener("click", () => {
   if (archivistState.running) return;
@@ -2391,6 +2658,7 @@ archivistBellButton?.addEventListener("click", () => {
 });
 
 tycoonNewAssignment?.addEventListener("click", newTycoonAssignment);
+tycoonTutorialButton?.addEventListener("click", showTycoonTutorial);
 tycoonPublish?.addEventListener("click", publishTycoonStory);
 tycoonMoveToPublish?.addEventListener("click", moveTycoonDraftToPublish);
 tycoonResetProgress?.addEventListener("click", resetTycoonProgress);

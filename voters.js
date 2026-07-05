@@ -1,0 +1,20 @@
+window.CommonPagesCivicData.voterGroups = [
+  { id: "workingClass", name: "Working-class voters", size: 18, turnout: 58, support: 49, issues: ["wages", "healthcare", "jobs"], persuasion: 1.1 },
+  { id: "industrialWorkers", name: "Industrial workers", size: 8, turnout: 61, support: 46, issues: ["jobs", "trade", "pollution"], persuasion: 1.05 },
+  { id: "collegeStudents", name: "College students", size: 9, turnout: 42, support: 60, issues: ["climate", "tuition", "housing"], persuasion: 1.2 },
+  { id: "parents", name: "Parents", size: 14, turnout: 66, support: 50, issues: ["schools", "safety", "taxes"], persuasion: 1 },
+  { id: "seniors", name: "Seniors", size: 16, turnout: 74, support: 45, issues: ["healthcare", "taxes", "public safety"], persuasion: 0.85 },
+  { id: "smallBusiness", name: "Small business owners", size: 10, turnout: 69, support: 47, issues: ["taxes", "regulation", "insurance"], persuasion: 0.95 },
+  { id: "unionMembers", name: "Union members", size: 7, turnout: 68, support: 57, issues: ["labor", "wages", "jobs"], persuasion: 1 },
+  { id: "environmentalVoters", name: "Environmental voters", size: 8, turnout: 60, support: 62, issues: ["climate", "transit", "coast"], persuasion: 1.05 },
+  { id: "ruralVoters", name: "Rural voters", size: 13, turnout: 67, support: 38, issues: ["roads", "water", "healthcare access"], persuasion: 0.9 },
+  { id: "urbanProfessionals", name: "Urban professionals", size: 12, turnout: 64, support: 56, issues: ["transit", "housing", "government reform"], persuasion: 1 },
+  { id: "religiousVoters", name: "Religious voters", size: 11, turnout: 70, support: 39, issues: ["family", "schools", "religious liberty"], persuasion: 0.85 },
+  { id: "immigrantCommunities", name: "Immigrant communities", size: 9, turnout: 52, support: 58, issues: ["language access", "small business", "civil rights"], persuasion: 1.1 },
+  { id: "teachers", name: "Teachers", size: 5, turnout: 72, support: 59, issues: ["schools", "pay", "student support"], persuasion: 1 },
+  { id: "healthcareWorkers", name: "Healthcare workers", size: 6, turnout: 63, support: 54, issues: ["clinics", "staffing", "insurance"], persuasion: 1 },
+  { id: "publicSectorWorkers", name: "Public-sector workers", size: 6, turnout: 68, support: 55, issues: ["budgets", "services", "pensions"], persuasion: 0.95 },
+  { id: "veterans", name: "Veterans", size: 7, turnout: 71, support: 43, issues: ["healthcare", "jobs", "service culture"], persuasion: 0.9 },
+  { id: "suburbanModerates", name: "Suburban moderates", size: 15, turnout: 72, support: 50, issues: ["schools", "taxes", "competence"], persuasion: 0.95 },
+  { id: "coastalResidents", name: "Coastal residents", size: 6, turnout: 61, support: 51, issues: ["insurance", "storms", "tourism"], persuasion: 1 }
+];

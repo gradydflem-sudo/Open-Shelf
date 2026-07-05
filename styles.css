@@ -1344,6 +1344,79 @@ textarea:focus {
   border-radius: 8px;
 }
 
+.tutorial-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: #fff8ea;
+  border: 1px solid #d8c29f;
+  border-radius: 8px;
+}
+
+.tutorial-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tutorial-head span {
+  color: var(--accent-dark);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tutorial-head .text-button {
+  margin: 0;
+}
+
+.tutorial-panel h3 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.tutorial-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tutorial-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tutorial-tags span {
+  padding: 5px 8px;
+  color: #fffdf8;
+  background: var(--ink);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.tutorial-example,
+.tutorial-feedback {
+  padding: 12px;
+  background: #fffdf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.tutorial-example {
+  display: grid;
+  gap: 8px;
+}
+
+.tutorial-feedback {
+  color: var(--green) !important;
+  font-weight: 800;
+}
+
 .publish-band {
   background: var(--wash);
 }
