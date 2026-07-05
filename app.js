@@ -102,6 +102,25 @@ const archivistBellButton = document.querySelector("#archivistBellButton");
 const archivistResetButton = document.querySelector("#archivistResetButton");
 const archivistUpgrades = document.querySelector("#archivistUpgrades");
 const archivistResult = document.querySelector("#archivistResult");
+const tycoonGame = document.querySelector("#tycoonGame");
+const tycoonNewAssignment = document.querySelector("#tycoonNewAssignment");
+const tycoonResetProgress = document.querySelector("#tycoonResetProgress");
+const tycoonViews = document.querySelector("#tycoonViews");
+const tycoonSubscribers = document.querySelector("#tycoonSubscribers");
+const tycoonRevenue = document.querySelector("#tycoonRevenue");
+const tycoonReputation = document.querySelector("#tycoonReputation");
+const tycoonEnergy = document.querySelector("#tycoonEnergy");
+const tycoonAssignment = document.querySelector("#tycoonAssignment");
+const tycoonDraft = document.querySelector("#tycoonDraft");
+const tycoonWordCount = document.querySelector("#tycoonWordCount");
+const tycoonKeywordCount = document.querySelector("#tycoonKeywordCount");
+const tycoonTimer = document.querySelector("#tycoonTimer");
+const tycoonFeedback = document.querySelector("#tycoonFeedback");
+const tycoonPublish = document.querySelector("#tycoonPublish");
+const tycoonMoveToPublish = document.querySelector("#tycoonMoveToPublish");
+const tycoonResult = document.querySelector("#tycoonResult");
+const tycoonShop = document.querySelector("#tycoonShop");
+const tycoonLog = document.querySelector("#tycoonLog");
 const ownerOnlyControls = [
   exportButton,
   importInput.closest(".import-button"),
@@ -111,7 +130,14 @@ const practiceData = window.CommonPagesPracticeData || {
   spanishPrompts: [],
   typingPassages: [],
   writingPrompts: [],
-  archivistItems: []
+  archivistItems: [],
+  microFiction: {
+    genres: [],
+    tropes: [],
+    audiences: [],
+    wordSets: [],
+    specialEvents: []
+  }
 };
 const practiceModeCopy = {
   "spanish-retype": {
@@ -271,6 +297,91 @@ const ARCHIVIST_CLUES = {
   Diary: ["diary", "journal", "entry", "dates"],
   Invention: ["machine", "designed", "powered", "invention", "sorts"]
 };
+const TYCOON_SAVE_KEY = "commonPagesMicroFictionTycoon";
+const TYCOON_UPGRADES = [
+  {
+    id: "organized-desk",
+    name: "Organized Desk",
+    cost: 45,
+    text: "Cleaner notes give every story a small reputation lift.",
+    requires: null
+  },
+  {
+    id: "vintage-oak-desk",
+    name: "Vintage Oak Desk",
+    cost: 130,
+    text: "Your platform feels more established. Views rise on each story.",
+    requires: "organized-desk"
+  },
+  {
+    id: "editors-desk",
+    name: "Editor's Desk",
+    cost: 320,
+    text: "Better revision habits increase reputation and subscribers.",
+    requires: "vintage-oak-desk"
+  },
+  {
+    id: "legendary-author-desk",
+    name: "Legendary Author Desk",
+    cost: 800,
+    text: "A prestige upgrade that boosts every published result.",
+    requires: "editors-desk"
+  },
+  {
+    id: "better-keyboard",
+    name: "Better Keyboard",
+    cost: 70,
+    text: "Typing speed bonus for faster drafts."
+  },
+  {
+    id: "research-notebook",
+    name: "Research Notebook",
+    cost: 90,
+    text: "Unlocks historical, nonfiction-flavored, and civic assignments."
+  },
+  {
+    id: "coffee-machine",
+    name: "Coffee Machine",
+    cost: 120,
+    text: "Raises creative energy and restores one energy after strong stories."
+  },
+  {
+    id: "editorial-calendar",
+    name: "Editorial Calendar",
+    cost: 160,
+    text: "Special events appear more often."
+  },
+  {
+    id: "cover-designer",
+    name: "Cover Designer",
+    cost: 220,
+    text: "Better covers increase views."
+  },
+  {
+    id: "newsletter-system",
+    name: "Newsletter System",
+    cost: 260,
+    text: "More readers subscribe after each story."
+  },
+  {
+    id: "archive-room",
+    name: "Archive Room",
+    cost: 300,
+    text: "Unlocks older prompts, rare tropes, and stranger combinations."
+  },
+  {
+    id: "translation-desk",
+    name: "Translation Desk",
+    cost: 360,
+    text: "Unlocks language-learner and Spanish-inflected assignments."
+  },
+  {
+    id: "serial-analytics",
+    name: "Serial Analytics",
+    cost: 480,
+    text: "Turns consistent work into more revenue."
+  }
+];
 let practiceState = {
   mode: "spanish-retype",
   item: null,
@@ -308,6 +419,8 @@ let archivistState = {
   upgrades: [],
   nextUpgradeAt: 4
 };
+let tycoonState = null;
+let tycoonTimerId = null;
 
 function isOwner() {
   return account?.email?.toLowerCase() === OWNER_EMAIL;
@@ -1263,6 +1376,422 @@ function closeArchivistGame() {
   clearArchiveItems();
 }
 
+function defaultTycoonState() {
+  return {
+    views: 0,
+    subscribers: 0,
+    revenue: 60,
+    reputation: 0,
+    energy: 5,
+    maxEnergy: 5,
+    assignments: 0,
+    upgrades: [],
+    log: ["Common Pages Micro-Fiction opens with one desk, one blank page, and a dangerous amount of optimism."],
+    challenge: null,
+    startedAt: null,
+    elapsed: 0
+  };
+}
+
+function loadTycoonState() {
+  if (tycoonState) return tycoonState;
+  try {
+    const saved = JSON.parse(localStorage.getItem(TYCOON_SAVE_KEY));
+    tycoonState = saved ? { ...defaultTycoonState(), ...saved } : defaultTycoonState();
+  } catch {
+    tycoonState = defaultTycoonState();
+  }
+  syncTycoonEnergyCap();
+  return tycoonState;
+}
+
+function saveTycoonState() {
+  if (!tycoonState) return;
+  localStorage.setItem(TYCOON_SAVE_KEY, JSON.stringify({
+    ...tycoonState,
+    startedAt: null
+  }));
+}
+
+function hasTycoonUpgrade(id) {
+  return Boolean(tycoonState?.upgrades?.includes(id));
+}
+
+function syncTycoonEnergyCap() {
+  if (!tycoonState) return;
+  let maxEnergy = 5;
+  if (hasTycoonUpgrade("coffee-machine")) maxEnergy += 2;
+  if (hasTycoonUpgrade("editorial-calendar")) maxEnergy += 1;
+  tycoonState.maxEnergy = maxEnergy;
+  tycoonState.energy = Math.min(tycoonState.energy, maxEnergy);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("en-US").format(Math.max(0, Math.round(value)));
+}
+
+function formatMoney(value) {
+  return `$${formatNumber(value)}`;
+}
+
+function microFictionData() {
+  return practiceData.microFiction || { genres: [], tropes: [], audiences: [], wordSets: [], specialEvents: [] };
+}
+
+function unlockedGenres() {
+  const data = microFictionData();
+  const genres = data.genres.filter((genre) => {
+    if ((genre.unlockAt || 0) > tycoonState.reputation) return false;
+    if (genre.requiresUpgrade && !hasTycoonUpgrade(genre.requiresUpgrade)) return false;
+    return true;
+  });
+  return genres.length ? genres : data.genres.slice(0, 6);
+}
+
+function weightedChoice(items, weightForItem) {
+  const weighted = items.map((item) => ({ item, weight: Math.max(0.1, weightForItem(item)) }));
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of weighted) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.item;
+  }
+  return weighted[weighted.length - 1]?.item || items[0];
+}
+
+function chooseTycoonGenre() {
+  return weightedChoice(unlockedGenres(), (genre) => {
+    if (genre.rarity === "rare") return hasTycoonUpgrade("archive-room") ? 2.2 : 1.1;
+    if (genre.rarity === "uncommon") return 3;
+    return 6;
+  });
+}
+
+function chooseTycoonEvent() {
+  const data = microFictionData();
+  const available = data.specialEvents.filter((event) => (event.unlockAt || 0) <= tycoonState.assignments);
+  const eventChance = 0.13 + (hasTycoonUpgrade("editorial-calendar") ? 0.16 : 0);
+  if (!available.length || Math.random() > eventChance) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+function createTycoonChallenge() {
+  const data = microFictionData();
+  const genre = chooseTycoonGenre();
+  const trope = data.tropes[Math.floor(Math.random() * data.tropes.length)] || "A surprising deadline";
+  const audience = data.audiences[Math.floor(Math.random() * data.audiences.length)] || "web-novel fans";
+  const words = data.wordSets[Math.floor(Math.random() * data.wordSets.length)] || ["coffee", "elevator", "neon"];
+  const event = chooseTycoonEvent();
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    genre: genre?.name || "Fantasy",
+    rarity: genre?.rarity || "common",
+    trope,
+    audience,
+    words,
+    event,
+    targetWords: 100
+  };
+}
+
+function renderTycoonResources() {
+  syncTycoonEnergyCap();
+  tycoonViews.textContent = formatNumber(tycoonState.views);
+  tycoonSubscribers.textContent = formatNumber(tycoonState.subscribers);
+  tycoonRevenue.textContent = formatMoney(tycoonState.revenue);
+  tycoonReputation.textContent = formatNumber(tycoonState.reputation);
+  tycoonEnergy.textContent = `${tycoonState.energy}/${tycoonState.maxEnergy}`;
+}
+
+function renderTycoonAssignment() {
+  const challenge = tycoonState.challenge;
+  if (!challenge) {
+    tycoonAssignment.innerHTML = `
+      <p class="eyebrow">Assignment Board</p>
+      <h3>No assignment yet.</h3>
+      <p>Start a new assignment to receive a genre, trope, audience, and three required words.</p>
+    `;
+    return;
+  }
+
+  tycoonAssignment.innerHTML = `
+    <p class="eyebrow">${challenge.event ? escapeHTML(challenge.event.name) : "Assignment Board"}</p>
+    <h3>${escapeHTML(challenge.genre)} for ${escapeHTML(challenge.audience)}</h3>
+    <div class="assignment-grid">
+      <span><strong>Trope</strong>${escapeHTML(challenge.trope)}</span>
+      <span><strong>Target</strong>${challenge.targetWords} words</span>
+      <span><strong>Required</strong>${challenge.words.map(escapeHTML).join(", ")}</span>
+      <span><strong>Rarity</strong>${escapeHTML(challenge.rarity)}</span>
+    </div>
+    ${challenge.event ? `<p class="event-note">${escapeHTML(challenge.event.text)}</p>` : ""}
+  `;
+}
+
+function tycoonWordList(text) {
+  return text.toLowerCase().match(/[a-z0-9'-]+/g) || [];
+}
+
+function tycoonWordCountFor(text) {
+  return tycoonWordList(text).length;
+}
+
+function requiredWordsUsed(text, words = tycoonState.challenge?.words || []) {
+  const normalized = ` ${tycoonWordList(text).join(" ")} `;
+  return words.filter((word) => normalized.includes(` ${word.toLowerCase()} `));
+}
+
+function formatElapsed(seconds) {
+  const safe = Math.max(0, Math.floor(seconds || 0));
+  const minutes = String(Math.floor(safe / 60)).padStart(2, "0");
+  const remainder = String(safe % 60).padStart(2, "0");
+  return `${minutes}:${remainder}`;
+}
+
+function currentTycoonElapsed() {
+  if (!tycoonState.startedAt) return tycoonState.elapsed || 0;
+  return Math.floor((Date.now() - tycoonState.startedAt) / 1000);
+}
+
+function updateTycoonLiveStats() {
+  const text = tycoonDraft.value;
+  const words = tycoonWordCountFor(text);
+  const used = requiredWordsUsed(text);
+  tycoonWordCount.textContent = `${words}/100 words`;
+  tycoonKeywordCount.textContent = `${used.length}/3 required words`;
+  tycoonTimer.textContent = formatElapsed(currentTycoonElapsed());
+}
+
+function startTycoonTimer() {
+  if (!tycoonState.challenge || tycoonState.startedAt) return;
+  tycoonState.startedAt = Date.now();
+  window.clearInterval(tycoonTimerId);
+  tycoonTimerId = window.setInterval(updateTycoonLiveStats, 1000);
+}
+
+function stopTycoonTimer() {
+  if (tycoonTimerId) window.clearInterval(tycoonTimerId);
+  tycoonTimerId = null;
+  if (tycoonState?.startedAt) {
+    tycoonState.elapsed = currentTycoonElapsed();
+    tycoonState.startedAt = null;
+  }
+}
+
+function renderTycoonShop() {
+  tycoonShop.innerHTML = TYCOON_UPGRADES.map((upgrade) => {
+    const owned = hasTycoonUpgrade(upgrade.id);
+    const locked = upgrade.requires && !hasTycoonUpgrade(upgrade.requires);
+    const affordable = tycoonState.revenue >= upgrade.cost;
+    return `
+      <button type="button" data-upgrade="${escapeHTML(upgrade.id)}" ${owned || locked || !affordable ? "disabled" : ""}>
+        <strong>${escapeHTML(upgrade.name)} <em>${owned ? "Owned" : formatMoney(upgrade.cost)}</em></strong>
+        <span>${escapeHTML(locked ? "Requires previous desk upgrade." : upgrade.text)}</span>
+      </button>
+    `;
+  }).join("");
+
+  tycoonShop.querySelectorAll("[data-upgrade]").forEach((button) => {
+    button.addEventListener("click", () => buyTycoonUpgrade(button.dataset.upgrade));
+  });
+}
+
+function renderTycoonLog() {
+  tycoonLog.innerHTML = tycoonState.log.slice(0, 8).map((entry) => `<p>${escapeHTML(entry)}</p>`).join("");
+}
+
+function renderTycoon() {
+  renderTycoonResources();
+  renderTycoonAssignment();
+  renderTycoonShop();
+  renderTycoonLog();
+  updateTycoonLiveStats();
+}
+
+function newTycoonAssignment() {
+  loadTycoonState();
+  stopTycoonTimer();
+  if (tycoonState.energy <= 0) {
+    tycoonFeedback.textContent = "Creative energy is empty. Buy a Coffee Machine or publish stronger pieces to recover faster.";
+    return;
+  }
+
+  tycoonState.challenge = createTycoonChallenge();
+  tycoonState.elapsed = 0;
+  tycoonDraft.value = "";
+  tycoonResult.classList.add("hidden");
+  tycoonResult.innerHTML = "";
+  tycoonFeedback.textContent = "Assignment ready. Write around 100 words and include all three required words.";
+  saveTycoonState();
+  renderTycoon();
+  tycoonDraft.focus();
+}
+
+function tycoonQualityGate(text, wordCount) {
+  if (wordCount < 60) return "Write at least 60 words before publishing this piece.";
+  const words = tycoonWordList(text);
+  const unique = new Set(words).size;
+  if (words.length >= 25 && unique / words.length < 0.32) {
+    return "This draft repeats too much. Add more real sentences before publishing.";
+  }
+  if (/(^|\s)(\w+)(\s+\2){4,}(\s|$)/i.test(text)) {
+    return "This looks like repeated filler. The tycoon rewards real writing, not padding.";
+  }
+  return "";
+}
+
+function tycoonUpgradeMultiplier(kind) {
+  let multiplier = 1;
+  if (kind === "views") {
+    if (hasTycoonUpgrade("cover-designer")) multiplier += 0.3;
+    if (hasTycoonUpgrade("vintage-oak-desk")) multiplier += 0.12;
+    if (hasTycoonUpgrade("legendary-author-desk")) multiplier += 0.25;
+  }
+  if (kind === "subscribers") {
+    if (hasTycoonUpgrade("newsletter-system")) multiplier += 0.45;
+    if (hasTycoonUpgrade("editors-desk")) multiplier += 0.18;
+  }
+  if (kind === "revenue") {
+    if (hasTycoonUpgrade("serial-analytics")) multiplier += 0.4;
+    if (hasTycoonUpgrade("legendary-author-desk")) multiplier += 0.25;
+  }
+  return multiplier;
+}
+
+function suggestTycoonUpgrade() {
+  const available = TYCOON_UPGRADES.find((upgrade) => {
+    if (hasTycoonUpgrade(upgrade.id)) return false;
+    if (upgrade.requires && !hasTycoonUpgrade(upgrade.requires)) return false;
+    return tycoonState.revenue >= upgrade.cost;
+  });
+  if (available) return `Upgrade suggestion: buy ${available.name}.`;
+  const next = TYCOON_UPGRADES.find((upgrade) => !hasTycoonUpgrade(upgrade.id));
+  return next ? `Upgrade suggestion: save for ${next.name}.` : "Upgrade suggestion: every shelf is humming.";
+}
+
+function publishTycoonStory() {
+  loadTycoonState();
+  if (!tycoonState.challenge) {
+    tycoonFeedback.textContent = "Start an assignment first.";
+    return;
+  }
+
+  const text = tycoonDraft.value.trim();
+  const wordCount = tycoonWordCountFor(text);
+  const qualityIssue = tycoonQualityGate(text, wordCount);
+  if (qualityIssue) {
+    tycoonFeedback.textContent = qualityIssue;
+    return;
+  }
+
+  stopTycoonTimer();
+  const challenge = tycoonState.challenge;
+  const used = requiredWordsUsed(text, challenge.words);
+  const missing = challenge.words.filter((word) => !used.includes(word));
+  const elapsed = Math.max(1, tycoonState.elapsed || currentTycoonElapsed());
+  const wordScore = Math.max(0, Math.round(100 - Math.abs(wordCount - 100) * 2));
+  const keywordScore = Math.round((used.length / challenge.words.length) * 100);
+  const speedScore = Math.max(0, Math.round(100 - Math.max(0, elapsed - 120) / 4));
+  const words = tycoonWordList(text);
+  const varietyScore = Math.min(100, Math.round((new Set(words).size / Math.max(1, words.length)) * 165));
+  const score = Math.round(wordScore * 0.34 + keywordScore * 0.28 + speedScore * 0.14 + varietyScore * 0.16 + 8);
+  const eventMultiplier = challenge.event?.multiplier || 1;
+  const rarityBoost = challenge.rarity === "rare" ? 1.22 : challenge.rarity === "uncommon" ? 1.1 : 1;
+  const viewsEarned = Math.round((140 + score * 12 + tycoonState.reputation * 7 + tycoonState.assignments * 18) * eventMultiplier * rarityBoost * tycoonUpgradeMultiplier("views"));
+  const subscribersGained = Math.max(0, Math.round((viewsEarned / 260 + used.length + (score > 85 ? 4 : 0)) * tycoonUpgradeMultiplier("subscribers")));
+  const revenueEarned = Math.max(1, Math.round((viewsEarned * 0.017 + score / 7) * tycoonUpgradeMultiplier("revenue")));
+  let reputationGained = Math.max(1, Math.round(score / 24));
+  if (hasTycoonUpgrade("organized-desk")) reputationGained += 1;
+  if (hasTycoonUpgrade("editors-desk")) reputationGained += 1;
+
+  tycoonState.views += viewsEarned;
+  tycoonState.subscribers += subscribersGained;
+  tycoonState.revenue += revenueEarned;
+  tycoonState.reputation += reputationGained;
+  tycoonState.assignments += 1;
+  tycoonState.energy = Math.max(0, tycoonState.energy - 1);
+  if (hasTycoonUpgrade("coffee-machine") && score >= 82) {
+    tycoonState.energy = Math.min(tycoonState.maxEnergy, tycoonState.energy + 1);
+  }
+  tycoonState.log.unshift(`${challenge.genre}: ${formatNumber(viewsEarned)} views, ${formatMoney(revenueEarned)}, +${subscribersGained} subscribers.`);
+  tycoonState.log = tycoonState.log.slice(0, 10);
+  tycoonState.challenge = null;
+  tycoonState.elapsed = 0;
+
+  tycoonResult.classList.remove("hidden");
+  tycoonResult.innerHTML = `
+    <h3>Your Story Went Live!</h3>
+    <div class="result-grid">
+      <span><strong>Views earned</strong>${formatNumber(viewsEarned)}</span>
+      <span><strong>Revenue earned</strong>${formatMoney(revenueEarned)}</span>
+      <span><strong>Subscribers gained</strong>+${subscribersGained}</span>
+      <span><strong>Reputation change</strong>+${reputationGained}</span>
+      <span><strong>Word count</strong>${wordCount}/100</span>
+      <span><strong>Required words</strong>${used.length}/${challenge.words.length}${missing.length ? `, missing ${missing.map(escapeHTML).join(", ")}` : ""}</span>
+      <span><strong>Time taken</strong>${formatElapsed(elapsed)}</span>
+      <span><strong>Constraint score</strong>${score}/100</span>
+    </div>
+    <p>${escapeHTML(suggestTycoonUpgrade())}</p>
+  `;
+  tycoonFeedback.textContent = "Published. Start another assignment when the platform needs a new spark.";
+  saveTycoonState();
+  renderTycoon();
+}
+
+function buyTycoonUpgrade(id) {
+  loadTycoonState();
+  const upgrade = TYCOON_UPGRADES.find((item) => item.id === id);
+  if (!upgrade || hasTycoonUpgrade(id)) return;
+  if (upgrade.requires && !hasTycoonUpgrade(upgrade.requires)) return;
+  if (tycoonState.revenue < upgrade.cost) return;
+
+  tycoonState.revenue -= upgrade.cost;
+  tycoonState.upgrades.push(id);
+  if (id === "coffee-machine") tycoonState.energy = Math.min(7, tycoonState.energy + 2);
+  syncTycoonEnergyCap();
+  tycoonState.log.unshift(`${upgrade.name} purchased.`);
+  saveTycoonState();
+  renderTycoon();
+}
+
+function moveTycoonDraftToPublish() {
+  if (!tycoonDraft.value.trim()) {
+    tycoonFeedback.textContent = "Write a draft first, then move it into Common Pages.";
+    return;
+  }
+  const challenge = tycoonState?.challenge;
+  titleInput.value = challenge ? `${challenge.genre}: ${challenge.trope}` : "Micro-Fiction Draft";
+  authorInput.value = account?.user_metadata?.display_name || account?.email || "";
+  categoryInput.value = "Fiction";
+  bodyInput.value = tycoonDraft.value.trim();
+  document.querySelector("#submit").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetTycoonProgress() {
+  if (!window.confirm("Reset Micro-Fiction Tycoon progress on this browser?")) return;
+  window.clearInterval(tycoonTimerId);
+  localStorage.removeItem(TYCOON_SAVE_KEY);
+  tycoonState = defaultTycoonState();
+  tycoonDraft.value = "";
+  tycoonResult.classList.add("hidden");
+  tycoonFeedback.textContent = "Tycoon reset. The platform is tiny again.";
+  saveTycoonState();
+  renderTycoon();
+}
+
+function renderTycoonSetup() {
+  loadTycoonState();
+  practiceLayout.classList.add("hidden");
+  practiceSelects.classList.add("hidden");
+  archivistGame.classList.add("hidden");
+  tycoonGame.classList.remove("hidden");
+  renderTycoon();
+}
+
+function closeTycoonGame() {
+  stopTycoonTimer();
+  tycoonGame?.classList.add("hidden");
+}
+
 function renderCharacterTrack() {
   if (practiceState.mode === "spanish-translate" || practiceState.mode === "writing-sprint") {
     characterTrack.innerHTML = "";
@@ -1522,6 +2051,7 @@ function setPracticeItem(item = choosePracticeItem()) {
 function openPracticeMode(mode) {
   practiceState.mode = mode;
   closeArchivistGame();
+  closeTycoonGame();
   if (mode === "archivist") {
     practiceMenu.classList.add("hidden");
     practiceWorkbench.classList.remove("hidden");
@@ -1529,10 +2059,18 @@ function openPracticeMode(mode) {
     practiceWorkbench.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
+  if (mode === "tycoon") {
+    practiceMenu.classList.add("hidden");
+    practiceWorkbench.classList.remove("hidden");
+    renderTycoonSetup();
+    practiceWorkbench.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
 
   practiceLayout.classList.remove("hidden");
   practiceSelects.classList.remove("hidden");
   archivistGame.classList.add("hidden");
+  tycoonGame.classList.add("hidden");
   renderPracticeTopics();
   setPracticeItem();
   practiceMenu.classList.add("hidden");
@@ -1542,12 +2080,14 @@ function openPracticeMode(mode) {
 
 function closePracticeMode() {
   closeArchivistGame();
+  closeTycoonGame();
   resetPracticeTimer();
   practiceWorkbench.classList.add("hidden");
   practiceMenu.classList.remove("hidden");
   practiceLayout.classList.remove("hidden");
   practiceSelects.classList.remove("hidden");
   archivistGame.classList.add("hidden");
+  tycoonGame.classList.add("hidden");
   document.querySelector("#practice").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1848,6 +2388,16 @@ archivistBellButton?.addEventListener("click", () => {
     archivistInput.focus();
     renderArchivistStats();
   }, 2500);
+});
+
+tycoonNewAssignment?.addEventListener("click", newTycoonAssignment);
+tycoonPublish?.addEventListener("click", publishTycoonStory);
+tycoonMoveToPublish?.addEventListener("click", moveTycoonDraftToPublish);
+tycoonResetProgress?.addEventListener("click", resetTycoonProgress);
+tycoonDraft?.addEventListener("input", () => {
+  loadTycoonState();
+  startTycoonTimer();
+  updateTycoonLiveStats();
 });
 
 exportButton.addEventListener("click", () => {

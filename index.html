@@ -6,7 +6,7 @@
     <title>Common Pages</title>
     <meta name="theme-color" content="#fffaf1" />
     <meta name="description" content="Common Pages is a public reading shelf and language practice space for essays, memoirs, fiction, notes, typing drills, and Spanish practice." />
-    <link rel="stylesheet" href="styles.css?v=20260704-archivist" />
+    <link rel="stylesheet" href="styles.css?v=20260704-tycoon" />
   </head>
   <body>
     <header class="topbar">
@@ -132,6 +132,11 @@
             <span class="pill practice-pill">Ready</span>
             <strong>The Rogue-lite Archivist</strong>
             <span>Save falling archive items by typing the right category tag.</span>
+          </button>
+          <button class="practice-card" type="button" data-practice-mode="tycoon">
+            <span class="pill practice-pill">Ready</span>
+            <strong>Micro-Fiction Tycoon</strong>
+            <span>Grow a tiny writing platform through 100-word fiction assignments.</span>
           </button>
         </div>
 
@@ -271,6 +276,62 @@
               </div>
             </aside>
           </section>
+
+          <section class="tycoon-game hidden" id="tycoonGame" aria-live="polite">
+            <div class="tycoon-main">
+              <div class="tycoon-header">
+                <div>
+                  <p class="eyebrow">Micro-Fiction Tycoon</p>
+                  <h3>Your tiny platform needs its next hit.</h3>
+                  <p>Write around 100 words using the assignment. The game scores constraints, not literary quality.</p>
+                </div>
+                <div class="tycoon-actions">
+                  <button class="button secondary" id="tycoonNewAssignment" type="button">New Assignment</button>
+                  <button class="button secondary" id="tycoonResetProgress" type="button">Reset Tycoon</button>
+                </div>
+              </div>
+
+              <div class="tycoon-resources">
+                <div><span>Views</span><strong id="tycoonViews">0</strong></div>
+                <div><span>Subscribers</span><strong id="tycoonSubscribers">0</strong></div>
+                <div><span>Revenue</span><strong id="tycoonRevenue">$0</strong></div>
+                <div><span>Reputation</span><strong id="tycoonReputation">0</strong></div>
+                <div><span>Energy</span><strong id="tycoonEnergy">5/5</strong></div>
+              </div>
+
+              <article class="assignment-card" id="tycoonAssignment"></article>
+
+              <label class="tycoon-editor">
+                <span>Flash fiction draft</span>
+                <textarea id="tycoonDraft" rows="12" autocomplete="off" spellcheck="true" placeholder="Write the story here..."></textarea>
+              </label>
+
+              <div class="tycoon-live">
+                <span id="tycoonWordCount">0/100 words</span>
+                <span id="tycoonKeywordCount">0/3 required words</span>
+                <span id="tycoonTimer">00:00</span>
+              </div>
+
+              <p class="practice-feedback" id="tycoonFeedback">Generate an assignment, then write a short story.</p>
+              <div class="form-actions compact-actions">
+                <button class="button primary" id="tycoonPublish" type="button">Publish Story</button>
+                <button class="button secondary" id="tycoonMoveToPublish" type="button">Move to Common Pages Draft</button>
+              </div>
+
+              <div class="tycoon-result hidden" id="tycoonResult"></div>
+            </div>
+
+            <aside class="tycoon-side">
+              <div class="tycoon-panel">
+                <h3>Upgrade Shop</h3>
+                <div class="tycoon-shop" id="tycoonShop"></div>
+              </div>
+              <div class="tycoon-panel">
+                <h3>Platform Log</h3>
+                <div class="tycoon-log" id="tycoonLog"></div>
+              </div>
+            </aside>
+          </section>
         </section>
       </section>
 
@@ -357,7 +418,7 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="practice-data.js?v=20260704-archivist"></script>
-    <script src="app.js?v=20260704-archivist"></script>
+    <script src="practice-data.js?v=20260704-tycoon"></script>
+    <script src="app.js?v=20260704-tycoon"></script>
   </body>
 </html>
