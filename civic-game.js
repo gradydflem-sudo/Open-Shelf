@@ -725,6 +725,10 @@
       renderGoverning();
       return;
     }
+    if (state.phase === "termReview") {
+      renderTermReview();
+      return;
+    }
     if (state.phase === "results") {
       renderResults();
       return;
@@ -2158,8 +2162,13 @@
       return;
     }
     if (gov.month >= gov.termMonths) {
-      gov.log.unshift("Term review reached. Future builds will open the next campaign decision from here.");
       state.career.legacy = legacyLabel();
+      state.phase = "termReview";
+      state.termReview = buildTermReview();
+      state.career.history.unshift({
+        type: "Term completed",
+        text: `${state.candidate.name} completed a term as ${byId(DATA.officeLadder, state.career?.currentOfficeId)?.name || state.candidate.office} with ${state.termReview.approval}% approval and the legacy label ${state.termReview.legacy}.`
+      });
       saveState();
       render();
       return;
@@ -2185,6 +2194,108 @@
     if (gov.deficit <= 2 && gov.budget >= 70) return "Fiscal Steward";
     if (gov.approval >= 62) return "Coalition Governor";
     return "Pragmatic Survivor";
+  }
+
+  function buildTermReview() {
+    const gov = state.governing;
+    const strongestMetrics = Object.entries(gov.metrics || {})
+      .filter(([key]) => key !== "trust")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const weakestMetrics = Object.entries(gov.metrics || {})
+      .filter(([key]) => key !== "trust")
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 3);
+    const notes = [];
+    if (gov.approval >= 65) notes.push("Your approval gives you room to seek a higher office or ask voters for another term.");
+    else if (gov.approval >= 50) notes.push("Your approval is workable, but the next campaign will need a clear explanation of what changed during the term.");
+    else notes.push("Low approval will make the next race difficult unless you rebuild trust before asking for a promotion.");
+    if ((gov.passedPolicies || []).length) notes.push(`${gov.passedPolicies.length} major policies became part of your record.`);
+    else notes.push("You leave office without a major enacted policy, which opponents can frame as drift.");
+    if (gov.deficit > 8) notes.push("The deficit is now a political liability and will follow you into the next race.");
+    else if (gov.budget >= 80) notes.push("Your budget position is strong, giving you a fiscal argument for future campaigns.");
+    if (gov.trust >= 70) notes.push("High public trust is your strongest long-term asset.");
+    return {
+      legacy: legacyLabel(),
+      approval: Math.round(gov.approval),
+      trust: Math.round(gov.trust),
+      budget: Math.round(gov.budget),
+      deficit: Math.round(gov.deficit),
+      capital: Math.round(gov.capital),
+      passedPolicies: [...(gov.passedPolicies || [])],
+      failedPolicies: [...(gov.failedPolicies || [])],
+      strongestMetrics,
+      weakestMetrics,
+      notes
+    };
+  }
+
+  function renderTermReview() {
+    const review = state.termReview || buildTermReview();
+    const office = byId(DATA.officeLadder, state.career?.currentOfficeId) || scenarioOffice();
+    const passed = review.passedPolicies.map((id) => byId(DATA.governingPolicies, id)?.name || id);
+    root.innerHTML = `
+      <section class="results-shell">
+        <div class="results-hero won">
+          <p class="eyebrow">Term Review</p>
+          <h1>${escapeHTML(review.legacy)}</h1>
+          <p>${escapeHTML(state.candidate.name)} completed a term as ${escapeHTML(office?.name || state.candidate.office)} with ${review.approval}% approval, ${review.trust}% trust, and a budget position of ${review.budget}.</p>
+          <div class="result-totals">
+            <div><span>Approval</span><strong>${review.approval}%</strong><em>public standing</em></div>
+            <div><span>Budget</span><strong>${review.budget}</strong><em>deficit ${review.deficit}</em></div>
+          </div>
+          <div class="button-row">
+            <button class="button primary" id="returnToCareer" type="button">Review Career</button>
+            <button class="button secondary" id="newCareerFromReview" type="button">New Career</button>
+          </div>
+        </div>
+        <div class="results-grid">
+          <article class="dashboard-card wide-card">
+            <h2>Record in Office</h2>
+            ${passed.length ? passed.map((name) => `<p><strong>${escapeHTML(name)}</strong> became part of your governing record.</p>`).join("") : "<p>No major policies passed this term.</p>"}
+          </article>
+          <article class="dashboard-card">
+            <h2>Strongest Outcomes</h2>
+            ${review.strongestMetrics.map(([key, value]) => `<p><strong>${escapeHTML(metricLabel(key))}</strong> · ${Math.round(value)}</p>`).join("")}
+          </article>
+          <article class="dashboard-card">
+            <h2>Weakest Outcomes</h2>
+            ${review.weakestMetrics.map(([key, value]) => `<p><strong>${escapeHTML(metricLabel(key))}</strong> · ${Math.round(value)}</p>`).join("")}
+          </article>
+          <article class="dashboard-card wide-card">
+            <h2>Career Analysis</h2>
+            ${review.notes.map((note) => `<p>${escapeHTML(note)}</p>`).join("")}
+          </article>
+        </div>
+      </section>
+    `;
+    document.querySelector("#returnToCareer")?.addEventListener("click", () => {
+      state.phase = "governing";
+      state.govTab = "career";
+      saveState();
+      render();
+    });
+    document.querySelector("#newCareerFromReview")?.addEventListener("click", () => {
+      if (!window.confirm("Start a new career and replace the saved game?")) return;
+      clearSavedState();
+      state = null;
+      render();
+    });
+  }
+
+  function metricLabel(key) {
+    return {
+      education: "Education",
+      healthcare: "Healthcare",
+      housing: "Housing",
+      economy: "Economy",
+      environment: "Environment",
+      safety: "Public safety",
+      administration: "Administration",
+      rural: "Rural access",
+      inequality: "Inequality",
+      transportation: "Transportation"
+    }[key] || key;
   }
 
   function renderResults() {
