@@ -91,84 +91,56 @@
   );
 
   data.usStates = [
-    {
-      id: "pa",
-      name: "Pennsylvania",
-      lean: 0,
-      population: 13000000,
-      urbanRural: "mixed metro, small-city, and rural electorate",
-      medianIncome: 73900,
-      educationLevel: "mixed",
-      turnout: 66,
-      industries: ["healthcare", "higher education", "manufacturing", "energy", "logistics"],
-      keyIssues: ["schools", "jobs", "energy", "housing", "public safety"],
-      competitiveness: "swing"
-    },
-    {
-      id: "mi",
-      name: "Michigan",
-      lean: -1,
-      population: 10000000,
-      urbanRural: "Detroit metro, mid-sized cities, manufacturing towns, and rural counties",
-      medianIncome: 71600,
-      educationLevel: "mixed",
-      turnout: 65,
-      industries: ["auto manufacturing", "healthcare", "agriculture", "clean energy"],
-      keyIssues: ["jobs", "schools", "water", "labor", "roads"],
-      competitiveness: "swing"
-    },
-    {
-      id: "az",
-      name: "Arizona",
-      lean: 1,
-      population: 7400000,
-      urbanRural: "fast-growing metro suburbs, border communities, tribal nations, and rural counties",
-      medianIncome: 76400,
-      educationLevel: "mixed",
-      turnout: 62,
-      industries: ["construction", "tourism", "semiconductors", "healthcare", "agriculture"],
-      keyIssues: ["water", "housing", "immigration", "schools", "growth"],
-      competitiveness: "swing"
-    },
-    {
-      id: "ga",
-      name: "Georgia",
-      lean: 1,
-      population: 11100000,
-      urbanRural: "Atlanta metro, college towns, Black Belt counties, and fast-growing suburbs",
-      medianIncome: 71800,
-      educationLevel: "mixed",
-      turnout: 64,
-      industries: ["logistics", "film", "agriculture", "higher education", "manufacturing"],
-      keyIssues: ["voting rights", "growth", "schools", "healthcare access", "taxes"],
-      competitiveness: "swing"
-    },
-    {
-      id: "ca",
-      name: "California",
-      lean: -14,
-      population: 39000000,
-      urbanRural: "large metros, agricultural valleys, coastal suburbs, and inland regions",
-      medianIncome: 95600,
-      educationLevel: "high",
-      turnout: 61,
-      industries: ["technology", "agriculture", "entertainment", "logistics", "clean energy"],
-      keyIssues: ["housing", "climate", "transportation", "immigration", "budget"],
-      competitiveness: "safe Democratic statewide, competitive in some districts"
-    },
-    {
-      id: "tx",
-      name: "Texas",
-      lean: 7,
-      population: 31000000,
-      urbanRural: "major metros, suburbs, border communities, energy regions, and rural counties",
-      medianIncome: 76700,
-      educationLevel: "mixed",
-      turnout: 58,
-      industries: ["energy", "technology", "agriculture", "logistics", "healthcare"],
-      keyIssues: ["border", "energy", "taxes", "schools", "water"],
-      competitiveness: "Republican-leaning statewide, mixed district politics"
-    }
+    { id: "al", name: "Alabama", lean: 15, population: 5100000, urbanRural: "small metros, Black Belt counties, suburbs, and rural towns", medianIncome: 62000, educationLevel: "mixed", turnout: 57, industries: ["aerospace", "auto manufacturing", "agriculture", "healthcare"], keyIssues: ["jobs", "schools", "healthcare access", "taxes"], competitiveness: "Republican-leaning statewide" },
+    { id: "ak", name: "Alaska", lean: 8, population: 730000, urbanRural: "Anchorage, remote towns, Native communities, and resource regions", medianIncome: 86000, educationLevel: "mixed", turnout: 61, industries: ["energy", "fishing", "tourism", "public sector"], keyIssues: ["energy", "tribal sovereignty", "transportation", "cost of living"], competitiveness: "Republican-leaning with independent streaks" },
+    { id: "az", name: "Arizona", lean: 1, population: 7400000, urbanRural: "fast-growing metro suburbs, border communities, tribal nations, and rural counties", medianIncome: 76400, educationLevel: "mixed", turnout: 62, industries: ["construction", "tourism", "semiconductors", "healthcare", "agriculture"], keyIssues: ["water", "housing", "immigration", "schools", "growth"], competitiveness: "swing" },
+    { id: "ar", name: "Arkansas", lean: 17, population: 3100000, urbanRural: "rural counties, river towns, and growing northwest metros", medianIncome: 59000, educationLevel: "mixed", turnout: 54, industries: ["retail headquarters", "agriculture", "logistics", "manufacturing"], keyIssues: ["wages", "schools", "roads", "healthcare"], competitiveness: "Republican-leaning statewide" },
+    { id: "ca", name: "California", lean: -14, population: 39000000, urbanRural: "large metros, agricultural valleys, coastal suburbs, and inland regions", medianIncome: 95600, educationLevel: "high", turnout: 61, industries: ["technology", "agriculture", "entertainment", "logistics", "clean energy"], keyIssues: ["housing", "climate", "transportation", "immigration", "budget"], competitiveness: "safe Democratic statewide, competitive in some districts" },
+    { id: "co", name: "Colorado", lean: -7, population: 5900000, urbanRural: "Denver metro, mountain towns, college cities, and plains counties", medianIncome: 92000, educationLevel: "high", turnout: 70, industries: ["technology", "tourism", "energy", "aerospace"], keyIssues: ["housing", "water", "public lands", "transportation"], competitiveness: "Democratic-leaning statewide" },
+    { id: "ct", name: "Connecticut", lean: -11, population: 3600000, urbanRural: "dense suburbs, small cities, and coastal towns", medianIncome: 91000, educationLevel: "high", turnout: 66, industries: ["finance", "insurance", "healthcare", "defense"], keyIssues: ["taxes", "schools", "housing", "transit"], competitiveness: "Democratic-leaning statewide" },
+    { id: "de", name: "Delaware", lean: -8, population: 1030000, urbanRural: "suburbs, beaches, small cities, and rural lower counties", medianIncome: 79000, educationLevel: "mixed", turnout: 64, industries: ["finance", "chemicals", "tourism", "healthcare"], keyIssues: ["schools", "coastal resilience", "taxes", "housing"], competitiveness: "Democratic-leaning statewide" },
+    { id: "fl", name: "Florida", lean: 5, population: 22600000, urbanRural: "large metros, retirees, tourism corridors, agricultural towns, and coastal communities", medianIncome: 71000, educationLevel: "mixed", turnout: 64, industries: ["tourism", "healthcare", "agriculture", "aerospace"], keyIssues: ["insurance", "housing", "immigration", "schools", "storms"], competitiveness: "Republican-leaning statewide, competitive in some metros" },
+    { id: "ga", name: "Georgia", lean: 1, population: 11100000, urbanRural: "Atlanta metro, college towns, Black Belt counties, and fast-growing suburbs", medianIncome: 71800, educationLevel: "mixed", turnout: 64, industries: ["logistics", "film", "agriculture", "higher education", "manufacturing"], keyIssues: ["voting rights", "growth", "schools", "healthcare access", "taxes"], competitiveness: "swing" },
+    { id: "hi", name: "Hawaii", lean: -20, population: 1400000, urbanRural: "island communities, Honolulu, military towns, and rural coasts", medianIncome: 95000, educationLevel: "mixed", turnout: 51, industries: ["tourism", "military", "healthcare", "agriculture"], keyIssues: ["housing", "native rights", "tourism", "climate"], competitiveness: "Democratic-leaning statewide" },
+    { id: "id", name: "Idaho", lean: 20, population: 2000000, urbanRural: "fast-growing Boise suburbs, farm towns, mountain communities, and rural counties", medianIncome: 72000, educationLevel: "mixed", turnout: 66, industries: ["agriculture", "technology", "tourism", "manufacturing"], keyIssues: ["growth", "housing", "public lands", "schools"], competitiveness: "Republican-leaning statewide" },
+    { id: "il", name: "Illinois", lean: -10, population: 12500000, urbanRural: "Chicago metro, college towns, suburbs, industrial cities, and farm counties", medianIncome: 78000, educationLevel: "mixed", turnout: 63, industries: ["finance", "logistics", "agriculture", "manufacturing"], keyIssues: ["taxes", "public safety", "schools", "jobs"], competitiveness: "Democratic-leaning statewide, mixed districts" },
+    { id: "in", name: "Indiana", lean: 11, population: 6900000, urbanRural: "Indianapolis metro, manufacturing towns, college cities, and farm counties", medianIncome: 69000, educationLevel: "mixed", turnout: 58, industries: ["manufacturing", "logistics", "agriculture", "healthcare"], keyIssues: ["jobs", "schools", "roads", "taxes"], competitiveness: "Republican-leaning statewide" },
+    { id: "ia", name: "Iowa", lean: 8, population: 3200000, urbanRural: "farm counties, small cities, college towns, and growing suburbs", medianIncome: 70000, educationLevel: "mixed", turnout: 68, industries: ["agriculture", "insurance", "manufacturing", "renewable energy"], keyIssues: ["farm economy", "schools", "healthcare", "water"], competitiveness: "Republican-leaning statewide, swing history" },
+    { id: "ks", name: "Kansas", lean: 11, population: 2900000, urbanRural: "Kansas City suburbs, Wichita, college towns, and rural plains", medianIncome: 72000, educationLevel: "mixed", turnout: 63, industries: ["aviation", "agriculture", "energy", "healthcare"], keyIssues: ["schools", "taxes", "water", "rural hospitals"], competitiveness: "Republican-leaning statewide" },
+    { id: "ky", name: "Kentucky", lean: 16, population: 4500000, urbanRural: "Louisville, Lexington, coal country, farm counties, and river towns", medianIncome: 61000, educationLevel: "mixed", turnout: 57, industries: ["auto manufacturing", "bourbon", "agriculture", "logistics"], keyIssues: ["jobs", "healthcare", "opioids", "schools"], competitiveness: "Republican-leaning statewide" },
+    { id: "la", name: "Louisiana", lean: 12, population: 4600000, urbanRural: "New Orleans, Baton Rouge, bayou communities, river parishes, and rural towns", medianIncome: 58000, educationLevel: "mixed", turnout: 59, industries: ["energy", "shipping", "tourism", "petrochemicals"], keyIssues: ["coastal loss", "jobs", "crime", "schools"], competitiveness: "Republican-leaning statewide" },
+    { id: "me", name: "Maine", lean: -4, population: 1400000, urbanRural: "small cities, coastal towns, mill communities, and rural northern counties", medianIncome: 69000, educationLevel: "mixed", turnout: 72, industries: ["tourism", "fishing", "forestry", "healthcare"], keyIssues: ["housing", "healthcare", "energy costs", "fishing"], competitiveness: "Democratic-leaning statewide, split-ticket tendencies" },
+    { id: "md", name: "Maryland", lean: -15, population: 6200000, urbanRural: "Baltimore, DC suburbs, Chesapeake towns, and rural counties", medianIncome: 99000, educationLevel: "high", turnout: 65, industries: ["federal contracting", "biotech", "healthcare", "ports"], keyIssues: ["transit", "schools", "public safety", "housing"], competitiveness: "Democratic-leaning statewide" },
+    { id: "ma", name: "Massachusetts", lean: -18, population: 7000000, urbanRural: "Boston metro, college towns, post-industrial cities, and coastal communities", medianIncome: 96000, educationLevel: "high", turnout: 67, industries: ["higher education", "biotech", "healthcare", "technology"], keyIssues: ["housing", "transit", "healthcare", "education"], competitiveness: "Democratic-leaning statewide" },
+    { id: "mi", name: "Michigan", lean: -1, population: 10000000, urbanRural: "Detroit metro, mid-sized cities, manufacturing towns, and rural counties", medianIncome: 71600, educationLevel: "mixed", turnout: 65, industries: ["auto manufacturing", "healthcare", "agriculture", "clean energy"], keyIssues: ["jobs", "schools", "water", "labor", "roads"], competitiveness: "swing" },
+    { id: "mn", name: "Minnesota", lean: -5, population: 5700000, urbanRural: "Twin Cities metro, farm counties, Iron Range towns, and regional centers", medianIncome: 85000, educationLevel: "high", turnout: 76, industries: ["healthcare", "agriculture", "retail headquarters", "mining"], keyIssues: ["schools", "public safety", "healthcare", "rural development"], competitiveness: "Democratic-leaning statewide, competitive regions" },
+    { id: "ms", name: "Mississippi", lean: 14, population: 2900000, urbanRural: "Jackson metro, Delta communities, Gulf Coast, and rural counties", medianIncome: 54000, educationLevel: "mixed", turnout: 57, industries: ["agriculture", "shipbuilding", "healthcare", "manufacturing"], keyIssues: ["healthcare access", "schools", "jobs", "infrastructure"], competitiveness: "Republican-leaning statewide" },
+    { id: "mo", name: "Missouri", lean: 10, population: 6200000, urbanRural: "St. Louis, Kansas City, Ozarks, college towns, and farm counties", medianIncome: 68000, educationLevel: "mixed", turnout: 62, industries: ["agriculture", "manufacturing", "healthcare", "logistics"], keyIssues: ["crime", "jobs", "schools", "rural hospitals"], competitiveness: "Republican-leaning statewide" },
+    { id: "mt", name: "Montana", lean: 11, population: 1100000, urbanRural: "mountain towns, tribal nations, plains counties, and growing college cities", medianIncome: 70000, educationLevel: "mixed", turnout: 70, industries: ["tourism", "agriculture", "energy", "mining"], keyIssues: ["public lands", "housing", "tribal sovereignty", "healthcare"], competitiveness: "Republican-leaning with independent streaks" },
+    { id: "ne", name: "Nebraska", lean: 14, population: 2000000, urbanRural: "Omaha, Lincoln, farm counties, and rural plains", medianIncome: 73000, educationLevel: "mixed", turnout: 64, industries: ["agriculture", "insurance", "transportation", "manufacturing"], keyIssues: ["farm economy", "schools", "taxes", "water"], competitiveness: "Republican-leaning statewide, Omaha competitive" },
+    { id: "nv", name: "Nevada", lean: 0, population: 3200000, urbanRural: "Las Vegas metro, Reno, tourism corridors, mining towns, and rural counties", medianIncome: 75000, educationLevel: "mixed", turnout: 60, industries: ["tourism", "gaming", "logistics", "mining"], keyIssues: ["housing", "water", "jobs", "unions"], competitiveness: "swing" },
+    { id: "nh", name: "New Hampshire", lean: -2, population: 1400000, urbanRural: "small cities, Boston exurbs, mill towns, and rural north country", medianIncome: 90000, educationLevel: "mixed", turnout: 73, industries: ["technology", "tourism", "manufacturing", "healthcare"], keyIssues: ["taxes", "housing", "opioids", "schools"], competitiveness: "competitive with independent streaks" },
+    { id: "nj", name: "New Jersey", lean: -12, population: 9300000, urbanRural: "dense suburbs, cities, shore towns, and commuter corridors", medianIncome: 97000, educationLevel: "high", turnout: 63, industries: ["pharmaceuticals", "finance", "ports", "healthcare"], keyIssues: ["property taxes", "transit", "schools", "housing"], competitiveness: "Democratic-leaning statewide" },
+    { id: "nm", name: "New Mexico", lean: -7, population: 2100000, urbanRural: "Albuquerque, pueblos, border communities, energy towns, and rural counties", medianIncome: 62000, educationLevel: "mixed", turnout: 61, industries: ["energy", "federal labs", "tourism", "agriculture"], keyIssues: ["water", "education", "tribal sovereignty", "jobs"], competitiveness: "Democratic-leaning statewide" },
+    { id: "ny", name: "New York", lean: -14, population: 19600000, urbanRural: "New York City, suburbs, upstate cities, college towns, and rural counties", medianIncome: 82000, educationLevel: "high", turnout: 58, industries: ["finance", "media", "healthcare", "education", "tourism"], keyIssues: ["housing", "transit", "taxes", "public safety"], competitiveness: "Democratic-leaning statewide, mixed districts" },
+    { id: "nc", name: "North Carolina", lean: 2, population: 10900000, urbanRural: "Research Triangle, Charlotte, military towns, Black Belt counties, and rural regions", medianIncome: 70000, educationLevel: "mixed", turnout: 63, industries: ["finance", "technology", "military", "agriculture"], keyIssues: ["schools", "growth", "healthcare", "jobs"], competitiveness: "swing" },
+    { id: "nd", name: "North Dakota", lean: 22, population: 780000, urbanRural: "energy towns, farm counties, tribal nations, and small cities", medianIncome: 76000, educationLevel: "mixed", turnout: 62, industries: ["energy", "agriculture", "healthcare", "transportation"], keyIssues: ["energy", "farm economy", "tribal sovereignty", "roads"], competitiveness: "Republican-leaning statewide" },
+    { id: "oh", name: "Ohio", lean: 7, population: 11800000, urbanRural: "large metros, industrial towns, suburbs, Appalachia, and farm counties", medianIncome: 69000, educationLevel: "mixed", turnout: 63, industries: ["manufacturing", "healthcare", "logistics", "agriculture"], keyIssues: ["jobs", "opioids", "schools", "public safety"], competitiveness: "Republican-leaning statewide, competitive districts" },
+    { id: "ok", name: "Oklahoma", lean: 20, population: 4000000, urbanRural: "Oklahoma City, Tulsa, tribal nations, energy regions, and rural counties", medianIncome: 63000, educationLevel: "mixed", turnout: 52, industries: ["energy", "aerospace", "tribal enterprises", "agriculture"], keyIssues: ["energy", "tribal sovereignty", "schools", "healthcare"], competitiveness: "Republican-leaning statewide" },
+    { id: "or", name: "Oregon", lean: -9, population: 4200000, urbanRural: "Portland metro, college towns, timber counties, agricultural valleys, and coast", medianIncome: 78000, educationLevel: "mixed", turnout: 68, industries: ["technology", "forestry", "agriculture", "tourism"], keyIssues: ["housing", "public safety", "climate", "rural development"], competitiveness: "Democratic-leaning statewide" },
+    { id: "pa", name: "Pennsylvania", lean: 0, population: 13000000, urbanRural: "mixed metro, small-city, and rural electorate", medianIncome: 73900, educationLevel: "mixed", turnout: 66, industries: ["healthcare", "higher education", "manufacturing", "energy", "logistics"], keyIssues: ["schools", "jobs", "energy", "housing", "public safety"], competitiveness: "swing" },
+    { id: "ri", name: "Rhode Island", lean: -14, population: 1100000, urbanRural: "Providence metro, coastal towns, suburbs, and older mill communities", medianIncome: 79000, educationLevel: "mixed", turnout: 61, industries: ["healthcare", "education", "tourism", "marine trades"], keyIssues: ["housing", "coastal resilience", "schools", "taxes"], competitiveness: "Democratic-leaning statewide" },
+    { id: "sc", name: "South Carolina", lean: 9, population: 5400000, urbanRural: "Charleston, Columbia, Upstate manufacturing, Black Belt counties, and coastal towns", medianIncome: 66000, educationLevel: "mixed", turnout: 60, industries: ["manufacturing", "tourism", "ports", "agriculture"], keyIssues: ["growth", "schools", "coastal storms", "jobs"], competitiveness: "Republican-leaning statewide" },
+    { id: "sd", name: "South Dakota", lean: 18, population: 920000, urbanRural: "farm counties, tribal nations, Sioux Falls, tourism areas, and plains towns", medianIncome: 70000, educationLevel: "mixed", turnout: 64, industries: ["agriculture", "tourism", "finance", "healthcare"], keyIssues: ["farm economy", "tribal sovereignty", "schools", "healthcare"], competitiveness: "Republican-leaning statewide" },
+    { id: "tn", name: "Tennessee", lean: 14, population: 7100000, urbanRural: "Nashville, Memphis, Knoxville, Chattanooga, suburbs, and rural counties", medianIncome: 67000, educationLevel: "mixed", turnout: 55, industries: ["music", "healthcare", "auto manufacturing", "tourism"], keyIssues: ["growth", "schools", "public safety", "taxes"], competitiveness: "Republican-leaning statewide" },
+    { id: "tx", name: "Texas", lean: 7, population: 31000000, urbanRural: "major metros, suburbs, border communities, energy regions, and rural counties", medianIncome: 76700, educationLevel: "mixed", turnout: 58, industries: ["energy", "technology", "agriculture", "logistics", "healthcare"], keyIssues: ["border", "energy", "taxes", "schools", "water"], competitiveness: "Republican-leaning statewide, mixed district politics" },
+    { id: "ut", name: "Utah", lean: 13, population: 3400000, urbanRural: "Wasatch Front suburbs, college towns, public lands communities, and rural counties", medianIncome: 89000, educationLevel: "mixed", turnout: 68, industries: ["technology", "tourism", "mining", "finance"], keyIssues: ["growth", "water", "housing", "public lands"], competitiveness: "Republican-leaning statewide" },
+    { id: "vt", name: "Vermont", lean: -18, population: 650000, urbanRural: "small towns, college communities, rural counties, and mountain tourism areas", medianIncome: 76000, educationLevel: "high", turnout: 71, industries: ["tourism", "agriculture", "education", "healthcare"], keyIssues: ["housing", "healthcare", "climate", "rural services"], competitiveness: "Democratic-leaning statewide" },
+    { id: "va", name: "Virginia", lean: -5, population: 8700000, urbanRural: "Northern Virginia, Hampton Roads, Richmond, college towns, and rural southwest", medianIncome: 87000, educationLevel: "high", turnout: 66, industries: ["federal contracting", "military", "technology", "agriculture"], keyIssues: ["schools", "transportation", "taxes", "public safety"], competitiveness: "Democratic-leaning statewide, competitive districts" },
+    { id: "wa", name: "Washington", lean: -13, population: 7800000, urbanRural: "Seattle metro, agricultural valleys, ports, timber counties, and eastern cities", medianIncome: 92000, educationLevel: "high", turnout: 68, industries: ["technology", "aerospace", "agriculture", "ports"], keyIssues: ["housing", "climate", "public safety", "transportation"], competitiveness: "Democratic-leaning statewide" },
+    { id: "wv", name: "West Virginia", lean: 25, population: 1800000, urbanRural: "Appalachian towns, coal counties, small cities, and rural valleys", medianIncome: 56000, educationLevel: "mixed", turnout: 57, industries: ["energy", "healthcare", "tourism", "chemicals"], keyIssues: ["jobs", "opioids", "roads", "healthcare"], competitiveness: "Republican-leaning statewide" },
+    { id: "wi", name: "Wisconsin", lean: 0, population: 5900000, urbanRural: "Milwaukee, Madison, manufacturing towns, farm counties, and lake communities", medianIncome: 73000, educationLevel: "mixed", turnout: 72, industries: ["manufacturing", "agriculture", "healthcare", "tourism"], keyIssues: ["schools", "labor", "roads", "farm economy"], competitiveness: "swing" },
+    { id: "wy", name: "Wyoming", lean: 28, population: 580000, urbanRural: "energy counties, ranching communities, mountain towns, and small cities", medianIncome: 73000, educationLevel: "mixed", turnout: 60, industries: ["energy", "ranching", "tourism", "mining"], keyIssues: ["energy", "public lands", "water", "healthcare access"], competitiveness: "Republican-leaning statewide" }
   ];
 
   data.educationLevels = [
@@ -176,7 +148,7 @@
     { id: "communityCollege", name: "Community College", text: "A skills-and-service profile connected to local opportunity.", skills: { coalition: 1 }, groups: { parents: 1, workingClass: 1, smallBusiness: 1 } },
     { id: "bachelors", name: "Bachelor's Degree", text: "A conventional candidate profile with broad institutional familiarity.", skills: { policy: 1 }, groups: { collegeEducated: 1, suburbanModerates: 1 } },
     { id: "graduate", name: "Graduate Degree", text: "A credentialed profile with policy strength and some outsider skepticism.", skills: { policy: 2, debate: 1 }, groups: { collegeEducated: 2, nonCollegeVoters: -1 } },
-    { id: "professional", name: "Professional Degree", text: "A law, medical, or professional profile that helps in debates, policy detail, and elite fundraising.", skills: { debate: 1, fundraising: 1, policy: 1 }, groups: { donors: 1, urbanProfessionals: 1 } }
+    { id: "professional", name: "Professional / Advanced Degree", text: "A law, medical, business, or other advanced professional credential, such as a JD, MD, MBA, MPA, or similar degree.", skills: { debate: 1, fundraising: 1, policy: 1 }, groups: { donors: 1, urbanProfessionals: 1 } }
   ];
 
   data.backgrounds = [
@@ -197,6 +169,7 @@
     { id: "cityCouncil", name: "City Council", tier: 2, electorate: "city", duties: ["housing", "public safety", "local services"], campaignScale: 0.78, governingPower: 0.7 },
     { id: "mayor", name: "Mayor", tier: 3, electorate: "citywide", duties: ["administration", "budget", "executive response"], campaignScale: 0.95, governingPower: 0.9 },
     { id: "stateHouse", name: "State House Representative", tier: 4, electorate: "state legislative district", duties: ["committees", "state bills", "district services", "state budget"], campaignScale: 1, governingPower: 0.85 },
+    { id: "appointedEducation", name: "Education Commissioner", tier: 4.5, electorate: "appointed executive office", duties: ["school administration", "agency budgets", "implementation", "public hearings"], campaignScale: 0.65, governingPower: 0.8 },
     { id: "stateSenate", name: "State Senator", tier: 5, electorate: "state senate district", duties: ["long-term legislation", "oversight", "state budget"], campaignScale: 1.18, governingPower: 0.9 },
     { id: "usHouse", name: "U.S. House Representative", tier: 6, electorate: "congressional district", duties: ["federal legislation", "committees", "constituent services", "national media"], campaignScale: 1.35, governingPower: 0.95 },
     { id: "governor", name: "Governor", tier: 7, electorate: "statewide", duties: ["cabinet appointments", "state agencies", "budget proposal", "veto power", "emergency response"], campaignScale: 1.55, governingPower: 1.25 },
@@ -225,6 +198,76 @@
     { id: "devRaman", name: "Dev Raman", role: "Legal Counsel", ideology: "civil liberties", competence: 84, loyalty: 60, trait: "Independent thinker", effects: { legislative: 1, trust: 1 } }
   ];
 
+  data.staff.push(
+    { id: "graceMerritt", name: "Grace Merritt", role: "Chief of Staff", ideology: "party insider", competence: 76, loyalty: 88, trait: "Knows the party machinery", effects: { administration: 1, capital: 2, groups: { partyActivists: 1 } } },
+    { id: "malikStone", name: "Malik Stone", role: "Chief of Staff", ideology: "reformer", competence: 72, loyalty: 70, trait: "Restless reform operator", effects: { administration: 1, media: 1, trust: 1, groups: { independents: 1 } } },
+    { id: "anaKeene", name: "Ana Keene", role: "Communications Director", ideology: "movement", competence: 78, loyalty: 74, trait: "Turns policy into human stories", effects: { media: 3, groups: { workingClass: 1, parents: 1 } } },
+    { id: "bryceHolloway", name: "Bryce Holloway", role: "Communications Director", ideology: "combative", competence: 69, loyalty: 80, trait: "Sharp attack instincts", effects: { media: 4, trust: -1, capital: 1 } },
+    { id: "leahNandakumar", name: "Leah Nandakumar", role: "Policy Director", ideology: "progressive technocrat", competence: 88, loyalty: 58, trait: "Ambitious agenda writer", effects: { policy: 4, capital: -1, groups: { progressives: 1 } } },
+    { id: "jonBell", name: "Jon Bell", role: "Policy Director", ideology: "incrementalist", competence: 76, loyalty: 76, trait: "Builds passable bills", effects: { policy: 2, legislative: 1, groups: { moderates: 1 } } },
+    { id: "rainaFox", name: "Raina Fox", role: "Legislative Liaison", ideology: "deal-maker", competence: 82, loyalty: 61, trait: "Trades amendments efficiently", effects: { legislative: 4, budget: -1 } },
+    { id: "samirDoyle", name: "Samir Doyle", role: "Legislative Liaison", ideology: "public pressure", competence: 70, loyalty: 78, trait: "Organizes outside pressure", effects: { legislative: 2, media: 1, groups: { partyActivists: 1 } } },
+    { id: "martaGaines", name: "Marta Gaines", role: "Finance Director", ideology: "anti-deficit", competence: 84, loyalty: 72, trait: "Says no early", effects: { budget: 4, groups: { fiscalConservatives: 1, progressives: -1 } } },
+    { id: "victorLiu", name: "Victor Liu", role: "Finance Director", ideology: "growth first", competence: 75, loyalty: 63, trait: "Finds outside revenue", effects: { budget: 1, fundraising: 2, groups: { donors: 1 } } },
+    { id: "camilaOrtiz", name: "Camila Ortiz", role: "Field Director", ideology: "grassroots", competence: 84, loyalty: 86, trait: "Volunteer machine builder", effects: { organizing: 4, volunteers: 14, groups: { collegeStudents: 1, unionMembers: 1 } } },
+    { id: "henryVale", name: "Henry Vale", role: "Field Director", ideology: "data-driven", competence: 79, loyalty: 64, trait: "Targets low-propensity voters", effects: { organizing: 2, media: -1, groups: { independents: 1 } } },
+    { id: "beatriceSnow", name: "Beatrice Snow", role: "Education Advisor", ideology: "parent advocate", competence: 75, loyalty: 82, trait: "Trusted by school families", effects: { policy: 1, groups: { parents: 3, teachers: 1 } } },
+    { id: "dariusWynn", name: "Darius Wynn", role: "Education Advisor", ideology: "standards reformer", competence: 80, loyalty: 66, trait: "Data and accountability focus", effects: { policy: 2, groups: { teachers: -1, suburbanModerates: 1 } } },
+    { id: "ellenPrice", name: "Ellen Price", role: "Economic Advisor", ideology: "labor economist", competence: 78, loyalty: 68, trait: "Worker-centered growth", effects: { policy: 1, budget: 1, groups: { unionMembers: 2, smallBusiness: -1 } } },
+    { id: "grantRios", name: "Grant Rios", role: "Economic Advisor", ideology: "market growth", competence: 76, loyalty: 61, trait: "Business recruitment specialist", effects: { budget: 1, fundraising: 1, groups: { smallBusiness: 2, donors: 1 } } },
+    { id: "maeOkafor", name: "Mae Okafor", role: "Housing Advisor", ideology: "tenant advocate", competence: 78, loyalty: 79, trait: "Strong with renters", effects: { policy: 1, groups: { renters: 3, homeowners: -1 } } },
+    { id: "owenFeld", name: "Owen Feld", role: "Housing Advisor", ideology: "pro-building moderate", competence: 80, loyalty: 62, trait: "Talks to builders and suburbs", effects: { coalition: 1, groups: { renters: 1, suburbanModerates: 1, homeowners: -0.5 } } },
+    { id: "noraSayegh", name: "Nora Sayegh", role: "Legal Counsel", ideology: "ethics watchdog", competence: 86, loyalty: 56, trait: "Finds problems before reporters do", effects: { trust: 2, legislative: 1, groups: { civilLibertarians: 1 } } },
+    { id: "paulBarrera", name: "Paul Barrera", role: "Legal Counsel", ideology: "institutionalist", competence: 78, loyalty: 80, trait: "Keeps agencies aligned", effects: { administration: 2, legislative: 1 } }
+  );
+
+  data.debateQuestions = [
+    {
+      id: "schoolFundingDebate",
+      title: "Moderator Question: School Funding",
+      audience: "Parents, teachers, and tax-sensitive homeowners are watching closely.",
+      question: "Would you raise local revenue to reduce class sizes and expand student services?",
+      choices: [
+        { label: "Yes, but pair it with transparent audits.", text: "A clear answer that tries to respect both need and cost.", effects: { trust: 2, debate: 6, groups: { parents: 2, teachers: 2, fiscalConservatives: -1 }, regions: { pineSuburbs: 1 } } },
+        { label: "No broad tax hike until waste is removed.", text: "Fiscal voters like the discipline; school advocates hear hesitation.", effects: { debate: 4, groups: { fiscalConservatives: 2, smallBusiness: 1, teachers: -2, parents: -0.5 }, regions: { ridgeTowns: 1 } } },
+        { label: "Shift the question to state funding fairness.", text: "You avoid the binary, which sounds practical to some and evasive to others.", effects: { trust: 0.5, debate: 3, groups: { moderates: 1.5, teachers: 0.8, partyActivists: -0.8 } } }
+      ]
+    },
+    {
+      id: "publicSafetyDebate",
+      title: "Audience Question: Public Safety",
+      audience: "A parent asks about response times after a rash of car break-ins.",
+      question: "What is the first public-safety change voters would actually notice?",
+      choices: [
+        { label: "Publish response-time targets and fund prevention.", text: "A balanced answer gives people something measurable.", effects: { trust: 1.5, debate: 5, groups: { parents: 2, suburbanModerates: 2, civilLibertarians: 0.6 } } },
+        { label: "Call for a visible patrol and enforcement surge.", text: "The answer is direct, but civil-liberties voters worry.", effects: { debate: 4, groups: { seniors: 2, veterans: 1.5, civilLibertarians: -1.5, immigrantCommunities: -0.6 }, regions: { pineSuburbs: 1 } } },
+        { label: "Lead with youth services and community trust.", text: "The room hears values; some swing voters want firmer specifics.", effects: { trust: 1, groups: { collegeStudents: 1.5, immigrantCommunities: 1.5, suburbanModerates: -0.8 } } }
+      ]
+    },
+    {
+      id: "housingDebate",
+      title: "Moderator Question: Housing Costs",
+      audience: "Renters, homeowners, and local builders are all listening for different promises.",
+      question: "How would you lower housing costs without destabilizing existing neighborhoods?",
+      choices: [
+        { label: "Allow more homes near transit and jobs.", text: "Renters hear action; some homeowners hear disruption.", effects: { debate: 5, groups: { renters: 3, collegeStudents: 2, homeowners: -1.5 }, regions: { harborCity: 1, universityDistrict: 1 } } },
+        { label: "Use targeted assistance and preserve local control.", text: "A cautious answer plays better with homeowners than renters.", effects: { trust: 1, debate: 3, groups: { homeowners: 2, seniors: 1, renters: -0.8, suburbanModerates: 1 } } },
+        { label: "Make it a cost-of-living argument, not a zoning war.", text: "The framing helps you avoid ideological traps.", effects: { trust: 1.5, debate: 4, groups: { moderates: 2, renters: 1, homeowners: 0.5 } } }
+      ]
+    },
+    {
+      id: "opponentAttackDebate",
+      title: "Opponent Attack: Experience",
+      audience: "The opponent says your plans sound like essays, not governing.",
+      question: "Why should voters trust you to execute instead of just talk?",
+      choices: [
+        { label: "Point to your team, calendar, and first three votes.", text: "Specifics blunt the attack.", effects: { trust: 2, debate: 7, opponentSupport: -1, groups: { moderates: 1.5, publicSectorWorkers: 1 } } },
+        { label: "Turn the attack back on the incumbent record.", text: "The exchange gets sharper and the crowd wakes up.", effects: { media: 3, debate: 5, opponentSupport: -1.6, trust: -0.4 } },
+        { label: "Tell a personal story about why you entered public life.", text: "A good story can land, but it needs prep to avoid sounding vague.", effects: { trust: 2, debate: 3, groups: { parents: 1, workingClass: 1, seniors: 0.8 } } }
+      ]
+    }
+  ];
+
   data.factions = [
     { id: "progressiveBloc", name: "Progressive Caucus", seats: 5, support: 54, priorities: ["housing", "labor", "civilRights"] },
     { id: "laborCaucus", name: "Labor Caucus", seats: 4, support: 58, priorities: ["labor", "education", "healthcare"] },
@@ -247,6 +290,42 @@
     { id: "ethicsCommission", name: "Independent Ethics Commission", area: "Anti-Corruption", cost: 3, capital: 3, text: "Create public reporting, gift rules, and independent review.", metrics: { trust: 6, budget: -3, approval: 2 }, groups: { suburbanModerates: 3, urbanProfessionals: 2, publicSectorWorkers: 1 }, factions: { moderateReformers: 3, civilLiberties: 2, independents: 1 } },
     { id: "communitySafety", name: "Community Safety Compact", area: "Public Safety", cost: 7, capital: 3, text: "Fund response times, violence prevention, and accountability metrics.", metrics: { safety: 5, trust: 2, budget: -7, approval: 1 }, groups: { parents: 2, seniors: 2, immigrantCommunities: 1, collegeStudents: 1 }, factions: { moderateReformers: 2, civilLiberties: 1, businessConservatives: 1 } },
     { id: "openRecords", name: "Open Records Expansion", area: "Government", cost: 2, capital: 2, text: "Make meetings, contracts, and public records easier to inspect.", metrics: { trust: 4, administration: 2, budget: -2 }, groups: { urbanProfessionals: 2, publicSectorWorkers: 1 }, factions: { civilLiberties: 3, moderateReformers: 2 } }
+  ];
+
+  data.oppositionBills = [
+    {
+      id: "propertyTaxCap",
+      name: "Property Tax Cap",
+      sponsor: "Business Conservative Caucus",
+      text: "The opposition proposes a property-tax cap. Homeowners like the relief, but school and housing budgets would tighten.",
+      choices: [
+        { label: "Sign it and claim fiscal discipline.", effects: { approval: 1, capital: -1, metrics: { budget: -7, education: -2 }, groups: { homeowners: 2, fiscalConservatives: 2, teachers: -2 }, factions: { businessConservatives: 5, laborCaucus: -3 } } },
+        { label: "Negotiate school-funding exemptions.", effects: { approval: 1, capital: -3, metrics: { budget: -3, education: 1 }, groups: { homeowners: 1, teachers: 1, fiscalConservatives: -1 }, factions: { moderateReformers: 3, businessConservatives: 1 } } },
+        { label: "Veto or block it publicly.", effects: { approval: -2, capital: 1, trust: 1, groups: { teachers: 2, homeowners: -2, fiscalConservatives: -2 }, factions: { businessConservatives: -5, laborCaucus: 2 } } }
+      ]
+    },
+    {
+      id: "permitFastTrack",
+      name: "Business Permit Fast Track",
+      sponsor: "Bipartisan Reform Caucus",
+      text: "Moderates and business conservatives offer a permitting bill if you agree to delay one labor regulation.",
+      choices: [
+        { label: "Accept the deal and bank the economic win.", effects: { approval: 2, capital: 1, metrics: { economy: 4, budget: 2 }, groups: { smallBusiness: 3, unionMembers: -2 }, factions: { moderateReformers: 4, businessConservatives: 4, laborCaucus: -4 } } },
+        { label: "Counter with worker-safety language.", effects: { approval: 1, capital: -2, metrics: { economy: 2, administration: 1 }, groups: { smallBusiness: 1, unionMembers: 1 }, factions: { laborCaucus: 2, moderateReformers: 2 } } },
+        { label: "Reject the quid pro quo.", effects: { trust: 2, approval: -1, capital: -1, groups: { unionMembers: 2, smallBusiness: -2 }, factions: { businessConservatives: -4, laborCaucus: 2 } } }
+      ]
+    },
+    {
+      id: "schoolChoicePilot",
+      name: "School Choice Pilot",
+      sponsor: "Rural Coalition",
+      text: "A rural bloc wants a small school-choice pilot in exchange for supporting your next education bill.",
+      choices: [
+        { label: "Accept a limited pilot with reporting rules.", effects: { approval: 1, capital: 2, metrics: { education: -1, rural: 2 }, groups: { ruralVoters: 2, teachers: -2, parents: 0.5 }, factions: { ruralCoalition: 5, laborCaucus: -3 } } },
+        { label: "Offer rural transportation funding instead.", effects: { capital: -2, metrics: { education: 2, rural: 2, budget: -4 }, groups: { teachers: 1, ruralVoters: 1 }, factions: { ruralCoalition: 2, laborCaucus: 2 } } },
+        { label: "Refuse to trade on school structure.", effects: { trust: 1, capital: -1, groups: { teachers: 2, ruralVoters: -1 }, factions: { ruralCoalition: -4, laborCaucus: 2 } } }
+      ]
+    }
   ];
 
   data.governingEvents = [

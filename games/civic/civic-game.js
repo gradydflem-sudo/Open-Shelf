@@ -26,11 +26,75 @@
     { id: "neighbor", name: "Local neighbor", text: "Personal, relational, and rooted in place.", effects: { trust: 2, volunteers: 6, groups: { seniors: 1, parents: 1, ruralVoters: 1 } } }
   ];
 
+  const DIFFICULTY_MODES = [
+    {
+      id: "easy",
+      name: "Easy",
+      text: "Friendlier polls, looser budgets, and weaker opposition pressure.",
+      supportPenalty: -1.5,
+      resourceMultiplier: 1.18,
+      opponentPressure: 0.78,
+      electionError: 2.4,
+      debateWeight: 0.08,
+      startBudget: 108,
+      monthlyRevenue: 7,
+      startingGovCapitalMax: 18,
+      govCapitalMargin: 0.36,
+      policyCost: 0.9,
+      policyCapital: 0.9,
+      votePenalty: -4,
+      oppositionChance: 0.14,
+      factionDrift: 0.8,
+      approvalDrag: 0.01
+    },
+    {
+      id: "intermediate",
+      name: "Intermediate",
+      text: "Competitive campaigns, tighter budgets, and opposition that can interrupt your agenda.",
+      supportPenalty: 3.2,
+      resourceMultiplier: 0.9,
+      opponentPressure: 1.12,
+      electionError: 3.8,
+      debateWeight: 0.1,
+      startBudget: 82,
+      monthlyRevenue: 4,
+      startingGovCapitalMax: 12,
+      govCapitalMargin: 0.22,
+      policyCost: 1.15,
+      policyCapital: 1.15,
+      votePenalty: 3,
+      oppositionChance: 0.28,
+      factionDrift: 1.35,
+      approvalDrag: 0.045
+    },
+    {
+      id: "advanced",
+      name: "Advanced",
+      text: "Harder starts, less money, volatile polls, scarce capital, and a legislature that fights back.",
+      supportPenalty: 6,
+      resourceMultiplier: 0.72,
+      opponentPressure: 1.38,
+      electionError: 5.2,
+      debateWeight: 0.12,
+      startBudget: 64,
+      monthlyRevenue: 2,
+      startingGovCapitalMax: 8,
+      govCapitalMargin: 0.13,
+      policyCost: 1.4,
+      policyCapital: 1.35,
+      votePenalty: 8,
+      oppositionChance: 0.42,
+      factionDrift: 2,
+      approvalDrag: 0.075
+    }
+  ];
+
   const TABS = [
     { id: "hq", name: "HQ" },
     { id: "map", name: "Map" },
     { id: "voters", name: "Voters" },
     { id: "policy", name: "Policy" },
+    { id: "debate", name: "Debate" },
     { id: "actions", name: "Actions" },
     { id: "polling", name: "Polling" },
     { id: "career", name: "Career" }
@@ -119,6 +183,14 @@
     return partyId === "democratic" ? "moderateDemocrat" : partyId === "republican" ? "conservativeRepublican" : "centristIndependent";
   }
 
+  function getDifficulty(id = state?.difficultyId) {
+    return byId(DIFFICULTY_MODES, id) || byId(DIFFICULTY_MODES, "intermediate") || DIFFICULTY_MODES[1];
+  }
+
+  function scaleMoney(value, multiplier) {
+    return Math.round((value || 0) * multiplier);
+  }
+
   function formatNumber(value) {
     return new Intl.NumberFormat("en-US").format(Math.round(value || 0));
   }
@@ -181,6 +253,8 @@
     saved.candidate.homeStateId = saved.candidate.homeStateId || scenario?.stateId || "pa";
     saved.candidate.educationId = saved.candidate.educationId || "bachelors";
     saved.candidate.age = saved.candidate.age || 35;
+    saved.difficultyId = saved.difficultyId || "intermediate";
+    saved.debate = saved.debate || { completed: [], score: 0, currentId: null };
     saved.career = saved.career || {
       mode: "career",
       currentOfficeId: saved.candidate.officeId,
@@ -196,6 +270,11 @@
     saved.endorsements = saved.endorsements || [];
     saved.actionMarks = saved.actionMarks || { fieldOffices: [] };
     saved.completedEvents = saved.completedEvents || [];
+    if (saved.governing) {
+      saved.governing.oppositionBill = saved.governing.oppositionBill || null;
+      saved.governing.oppositionCompleted = saved.governing.oppositionCompleted || [];
+      saved.governing.failedPolicies = saved.governing.failedPolicies || [];
+    }
     saved.log = saved.log || [];
     return saved;
   }
@@ -400,6 +479,7 @@
     const ideology = byId(IDEOLOGIES, normalizeIdeologyId(formData.get("ideology"), party?.id)) || IDEOLOGIES[0];
     const education = byId(DATA.educationLevels, formData.get("education")) || DATA.educationLevels?.find((item) => item.id === "bachelors");
     const homeState = byId(DATA.usStates, formData.get("homeState")) || byId(DATA.usStates, scenario.stateId) || DATA.usStates?.[0];
+    const difficulty = getDifficulty(formData.get("difficulty"));
     const style = byId(CAMPAIGN_STYLES, formData.get("style"));
     const opponent = byId(DATA.opponents, formData.get("opponent")) || byId(DATA.opponents, scenario.defaultOpponent);
     const homeRegionId = formData.get("homeRegion");
@@ -414,6 +494,10 @@
     applyFlatResource(resources, trait?.modifiers);
     applyFlatResource(resources, background?.resources);
     applyFlatResource(resources, style?.effects);
+    resources.money = scaleMoney(resources.money, difficulty.resourceMultiplier);
+    resources.volunteers = Math.max(10, Math.round((resources.volunteers || 0) * difficulty.resourceMultiplier));
+    resources.capital = Math.max(1, Math.round((resources.capital || 0) * difficulty.resourceMultiplier));
+    resources.trust = clamp((resources.trust || 50) - difficulty.supportPenalty * 0.45, 25, 80);
     resources.money = Math.max(15000, resources.money);
     resources.maxEnergy = resources.maxEnergy || 6;
     resources.energy = clamp(resources.energy, 1, resources.maxEnergy);
@@ -423,6 +507,7 @@
       phase: "campaign",
       tab: "hq",
       week: 1,
+      difficultyId: difficulty.id,
       scenarioId: scenario.id,
       maxWeeks: scenario.weeks,
       candidate: {
@@ -467,6 +552,7 @@
       pollHistory: [],
       focus: null,
       focusCompleted: [],
+      debate: { completed: [], score: 0, currentId: null },
       issueMomentum: 0,
       results: null,
       governing: null,
@@ -484,7 +570,7 @@
       const turnoutMod = trait?.groupTurnoutModifiers?.[group.id] || 0;
       return {
         ...group,
-        support: clamp(group.support + partyMod + ideologyMod + traitMod + backgroundMod + educationMod + styleMod + randomBetween(-1.2, 1.2), 22, 78),
+        support: clamp(group.support + partyMod + ideologyMod + traitMod + backgroundMod + educationMod + styleMod - difficulty.supportPenalty * 0.5 + randomBetween(-1.2, 1.2), 18, 78),
         turnout: clamp(group.turnout + turnoutMod + randomBetween(-0.8, 0.8), 30, 85)
       };
     });
@@ -504,7 +590,7 @@
       const opponentHome = opponent.homeRegion === region.id ? -1.8 : 0;
       return {
         ...region,
-        support: clamp(region.baselineSupport + ideologyFit + partyRegional * 0.35 + styleRegional * 0.35 + homeBonus + opponentHome + randomBetween(-1.5, 1.5), 25, 68),
+        support: clamp(region.baselineSupport + ideologyFit + partyRegional * 0.35 + styleRegional * 0.35 + homeBonus + opponentHome - difficulty.supportPenalty + randomBetween(-1.8, 1.8), 18, 66),
         turnout: region.turnout,
         ground: 0,
         visits: 0,
@@ -520,7 +606,7 @@
       if (topIssues.includes(issue.id)) applyEffects(stance.effects, { scale: 0.55 });
     });
 
-    addLog(`${state.candidate.name} launched a U.S. career campaign for ${scenario.office} in ${homeState?.name || "a home state"}.`, "major");
+    addLog(`${state.candidate.name} launched a ${difficulty.name.toLowerCase()} U.S. career campaign for ${scenario.office} in ${homeState?.name || "a home state"}.`, "major");
     addLog(`Background: ${background?.name || "Community Volunteer"}. ${background?.text || "A local reputation begins to form."}`, "note");
     addLog(`Education: ${education?.name || "Bachelor's Degree"}. ${education?.text || "A public profile begins to take shape."}`, "note");
     addLog(`${opponent.name}, a ${opponent.label.toLowerCase()}, begins as the principal opponent.`, "opponent");
@@ -557,6 +643,7 @@
       candidateAge: "34",
       homeState: "pa",
       education: "bachelors",
+      difficulty: "easy",
       scenario: "schoolBoardDistrict",
       background: "teacher",
       party: "independent",
@@ -586,6 +673,11 @@
             <strong>Career Mode is the flagship path.</strong>
             <span>This is the first playable layer of a larger American political life simulator: school board, city council, mayor, state legislature, Congress, governor, Senate, and president.</span>
           </div>
+          <div class="setup-command-board">
+            <div><span>Campaign</span><strong>Polls, field, debates</strong></div>
+            <div><span>Governing</span><strong>Budget, staff, bills</strong></div>
+            <div><span>Career</span><strong>Reelection or higher office</strong></div>
+          </div>
           ${saved ? `
             <div class="saved-campaign">
               <strong>Saved campaign found</strong>
@@ -614,6 +706,10 @@
             <label>
               <span>Starting race</span>
               <select name="scenario">${DATA.scenarios.map((item) => `<option value="${item.id}">${escapeHTML(item.name)}</option>`).join("")}</select>
+            </label>
+            <label>
+              <span>Difficulty</span>
+              <select name="difficulty">${DIFFICULTY_MODES.map((item) => `<option value="${item.id}" ${item.id === "intermediate" ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")}</select>
             </label>
             <label>
               <span>Background</span>
@@ -697,6 +793,7 @@
       syncIdeologyOptions();
       const selectedScenario = byId(DATA.scenarios, form.elements.scenario.value);
       const selectedState = byId(DATA.usStates, form.elements.homeState.value);
+      const difficulty = getDifficulty(form.elements.difficulty.value);
       const party = byId(DATA.parties, form.elements.party.value);
       const ideology = byId(IDEOLOGIES, form.elements.ideology.value);
       const trait = byId(DATA.traits, form.elements.trait.value);
@@ -707,6 +804,7 @@
       document.querySelector("#setupInsight").innerHTML = `
         <p><strong>${escapeHTML(selectedScenario.name)}:</strong> ${escapeHTML(selectedScenario.description)}</p>
         <p><strong>${escapeHTML(selectedState.name)}:</strong> ${escapeHTML(selectedState.competitiveness)} · key issues include ${escapeHTML(selectedState.keyIssues.join(", "))}.</p>
+        <p><strong>${escapeHTML(difficulty.name)} mode:</strong> ${escapeHTML(difficulty.text)}</p>
         <p><strong>${escapeHTML(background.name)}:</strong> ${escapeHTML(background.text)}</p>
         <p><strong>${escapeHTML(education.name)}:</strong> ${escapeHTML(education.text)}</p>
         <p><strong>${escapeHTML(party.name)}:</strong> ${escapeHTML(party.description)}</p>
@@ -725,6 +823,10 @@
       renderGoverning();
       return;
     }
+    if (state.phase === "termReview") {
+      renderTermReview();
+      return;
+    }
     if (state.phase === "results") {
       renderResults();
       return;
@@ -732,6 +834,7 @@
     const candidate = state.candidate;
     const party = byId(DATA.parties, candidate.partyId);
     const opponent = byId(DATA.opponents, state.opponentId);
+    const difficulty = getDifficulty();
     const topline = state.poll?.topline ?? getToplineSupport();
     root.innerHTML = `
       <section class="game-shell">
@@ -739,7 +842,7 @@
           <div>
             <p class="eyebrow">Week ${state.week} of ${state.maxWeeks}</p>
             <h1>${escapeHTML(candidate.name)} for ${escapeHTML(candidate.office)}</h1>
-            <p>${escapeHTML(party.shortName)} · Facing ${escapeHTML(opponent.name)} · Polling ${Math.round(topline)}%</p>
+            <p>${escapeHTML(party.shortName)} · Facing ${escapeHTML(opponent.name)} · Polling ${Math.round(topline)}% · ${escapeHTML(difficulty.name)} mode</p>
           </div>
           <div class="header-actions">
             <button class="button secondary" id="manualSave" type="button">Save</button>
@@ -801,13 +904,28 @@
     return `
       <div class="resource-grid">
         ${resources.map(([key, value]) => `
-          <div>
+          <div title="${escapeHTML(resourceDescription(key))}">
             <span>${resourceLabel(key)}</span>
             <strong>${value}</strong>
+            <small>${escapeHTML(resourceDescription(key))}</small>
           </div>
         `).join("")}
       </div>
     `;
+  }
+
+  function resourceDescription(key) {
+    return {
+      money: "Pays for staff, ads, travel, polling, and events.",
+      time: "Limits how many actions you can take this week.",
+      volunteers: "Increase turnout and make field work stronger.",
+      staff: "Unlocks capacity for offices, polling, debate prep, and operations.",
+      capital: "Political leverage for endorsements, deals, and legislative work.",
+      trust: "Makes voters more forgiving and improves late movement.",
+      energy: "Prevents every turn from becoming unlimited actions.",
+      media: "Attention that can help, but too much can magnify mistakes.",
+      debate: "Improves debate answers and election-night performance."
+    }[key] || "Campaign resource";
   }
 
   function renderEventPanel(eventData) {
@@ -834,6 +952,7 @@
     if (state.tab === "map") return renderMapTab();
     if (state.tab === "voters") return renderVotersTab();
     if (state.tab === "policy") return renderPolicyTab();
+    if (state.tab === "debate") return renderDebateTab();
     if (state.tab === "actions") return renderActionsTab();
     if (state.tab === "polling") return renderPollingTab();
     if (state.tab === "career") return renderCareerTab();
@@ -918,16 +1037,24 @@
   function renderMapTab() {
     return `
       <div class="map-layout">
-        <div class="region-map" aria-label="District strategy map">
-          ${state.regions.map((region, index) => {
-            const support = effectiveRegionSupport(region);
-            return `
-              <button class="map-tile ${supportClass(support)} tile-${index}" type="button" data-select-region="${region.id}">
-                <span>${escapeHTML(region.name)}</span>
-                <strong>${Math.round(support)}%</strong>
-              </button>
-            `;
-          }).join("")}
+        <div class="map-column">
+          <div class="map-legend">
+            <span><b class="safe"></b> ahead</span>
+            <span><b class="toss"></b> toss-up</span>
+            <span><b class="behind"></b> behind</span>
+          </div>
+          <div class="region-map" aria-label="District strategy map">
+            ${state.regions.map((region, index) => {
+              const support = effectiveRegionSupport(region);
+              return `
+                <button class="map-tile ${supportClass(support)} tile-${index}" type="button" data-select-region="${region.id}" title="Click to target actions in ${escapeHTML(region.name)}">
+                  <span>${escapeHTML(region.name)}</span>
+                  <strong>${Math.round(support)}%</strong>
+                  <em>${Math.round(effectiveRegionTurnout(region))}% turnout · ground ${Math.round(region.ground || 0)}</em>
+                </button>
+              `;
+            }).join("")}
+          </div>
         </div>
         <div class="region-detail-list">
           ${state.regions.map((region) => {
@@ -1002,7 +1129,7 @@
         </section>
         <aside class="focus-panel">
           <h2>Strategic Paths</h2>
-          ${state.focus ? renderActiveFocus() : "<p>Choose one path to build a multi-week argument. Focuses advance when the week ends.</p>"}
+          ${state.focus ? renderActiveFocus() : "<p>Choose one agenda path. Each step has campaign effects, and finishing the path opens a public decision with tradeoffs.</p>"}
           <div class="focus-list">
             ${DATA.focuses.map((focus) => renderFocus(focus)).join("")}
           </div>
@@ -1046,14 +1173,77 @@
     return `
       <article class="focus-card ${completed ? "complete" : ""}">
         <h3>${escapeHTML(focus.name)}</h3>
+        <p>${escapeHTML(focus.summary || "A multi-week campaign argument.")}</p>
         <ol>
-          ${focus.steps.map((step) => `<li>${escapeHTML(step.name)}</li>`).join("")}
+          ${focus.steps.map((step) => `<li><strong>${escapeHTML(step.name)}</strong><span>${escapeHTML(effectSummaryCampaign(step.effects))}</span></li>`).join("")}
         </ol>
+        <div class="focus-impact">${escapeHTML(focus.payoff || "Finishing this path unlocks a final decision.")}</div>
         <button class="button secondary" data-start-focus="${focus.id}" type="button" ${disabled ? "disabled" : ""}>
           ${completed ? "Completed" : active ? "Active" : "Begin Focus"}
         </button>
       </article>
     `;
+  }
+
+  function renderDebateTab() {
+    const current = state.debate?.currentId ? byId(DATA.debateQuestions, state.debate.currentId) : null;
+    const available = (DATA.debateQuestions || []).filter((question) => !state.debate?.completed?.includes(question.id));
+    const opponent = byId(DATA.opponents, state.opponentId);
+    return `
+      <div class="debate-layout">
+        <section class="debate-stage">
+          <div>
+            <p class="eyebrow">Debate Hall</p>
+            <h2>${current ? escapeHTML(current.title) : "Choose a Debate Moment"}</h2>
+            <p>${current ? escapeHTML(current.question) : "Use debate prep to shape answers in public. Strong answers move trust, media, voter groups, and the final election calculation."}</p>
+          </div>
+          <div class="debate-dais">
+            <div><span>Moderator</span><strong>Question control</strong></div>
+            <div><span>${escapeHTML(state.candidate.name)}</span><strong>Prep ${Math.round(state.resources.debate)}%</strong></div>
+            <div><span>${escapeHTML(opponent?.name || "Opponent")}</span><strong>Pressure ${opponent?.stats?.debate || 50}%</strong></div>
+            <div><span>Audience</span><strong>${current ? escapeHTML(current.audience) : "Waiting for a clear answer"}</strong></div>
+          </div>
+        </section>
+        ${current ? `
+          <section class="debate-options">
+            ${current.choices.map((choice, index) => `
+              <button type="button" data-debate-choice="${index}">
+                <strong>${escapeHTML(choice.label)}</strong>
+                <span>${escapeHTML(choice.text)}</span>
+                <em>${escapeHTML(effectSummaryCampaign(choice.effects))}</em>
+              </button>
+            `).join("")}
+          </section>
+        ` : `
+          <section class="debate-question-grid">
+            ${available.length ? available.map((question) => `
+              <article class="debate-question-card">
+                <h3>${escapeHTML(question.title)}</h3>
+                <p>${escapeHTML(question.audience)}</p>
+                <button class="button primary" data-start-debate="${question.id}" type="button">Take Question</button>
+              </article>
+            `).join("") : `
+              <article class="dashboard-card">
+                <h2>No Questions Left</h2>
+                <p class="card-copy">You have answered every prepared debate moment. Debate prep still helps election-night performance.</p>
+              </article>
+            `}
+          </section>
+        `}
+      </div>
+    `;
+  }
+
+  function effectSummaryCampaign(effects = {}) {
+    const parts = [];
+    if (effects.trust) parts.push(`${signed(effects.trust)} trust`);
+    if (effects.debate) parts.push(`${signed(effects.debate)} debate`);
+    if (effects.media) parts.push(`${signed(effects.media)} media`);
+    if (effects.capital) parts.push(`${signed(effects.capital)} capital`);
+    if (effects.opponentSupport) parts.push(`${signed(-effects.opponentSupport)} opponent pressure`);
+    if (effects.groups) parts.push("moves voter groups");
+    if (effects.regions) parts.push("moves regions");
+    return parts.join(" · ") || "Mixed reaction";
   }
 
   function renderActionsTab() {
@@ -1310,6 +1500,12 @@
     document.querySelectorAll("[data-start-focus]").forEach((button) => {
       button.addEventListener("click", () => startFocus(button.dataset.startFocus));
     });
+    document.querySelectorAll("[data-start-debate]").forEach((button) => {
+      button.addEventListener("click", () => startDebateQuestion(button.dataset.startDebate));
+    });
+    document.querySelectorAll("[data-debate-choice]").forEach((button) => {
+      button.addEventListener("click", () => answerDebateQuestion(Number(button.dataset.debateChoice)));
+    });
     document.querySelector("#buyInternalPoll")?.addEventListener("click", () => {
       if (state.resources.money < 5000) return;
       state.resources.money -= 5000;
@@ -1489,9 +1685,19 @@
       if (state.focus.stepIndex >= focus.steps.length) {
         state.focusCompleted.push(focus.id);
         addLog(`${focus.name} finished. The path is now part of the campaign's public identity.`, "major");
+        if (focus.choices?.length) state.event = buildFocusEvent(focus);
         state.focus = null;
       }
     }
+  }
+
+  function buildFocusEvent(focus) {
+    return {
+      id: `focus-${focus.id}`,
+      title: `${focus.name}: Closing Choice`,
+      body: focus.payoff || "The campaign has built a public argument. Now you need to choose how to use it.",
+      choices: focus.choices
+    };
   }
 
   function chooseEvent(choiceIndex) {
@@ -1503,6 +1709,36 @@
     state.completedEvents.push(eventData.id);
     addLog(`${eventData.title}: ${choice.label}`, "event");
     state.event = null;
+    refreshPoll({ soft: true });
+    saveState();
+    render();
+  }
+
+  function startDebateQuestion(questionId) {
+    const question = byId(DATA.debateQuestions, questionId);
+    if (!question || state.debate?.completed?.includes(questionId)) return;
+    state.debate = state.debate || { completed: [], score: 0, currentId: null };
+    state.debate.currentId = question.id;
+    addLog(`Debate stage opened: ${question.title}.`, "major");
+    saveState();
+    render();
+  }
+
+  function answerDebateQuestion(choiceIndex) {
+    const debate = state.debate || { completed: [], score: 0, currentId: null };
+    const question = byId(DATA.debateQuestions, debate.currentId);
+    const choice = question?.choices?.[choiceIndex];
+    if (!question || !choice) return;
+    const prep = clamp(state.resources.debate || 50, 0, 100);
+    const scale = 0.72 + prep / 125;
+    applyEffects(choice.effects, { scale });
+    const score = Math.round((choice.effects?.debate || 0) * scale + prep / 20);
+    debate.completed = [...new Set([...(debate.completed || []), question.id])];
+    debate.score = (debate.score || 0) + score;
+    debate.currentId = null;
+    state.debate = debate;
+    applyNumber(state.resources, "debate", -8, 0, 100);
+    addLog(`${question.title}: ${choice.label} Debate score ${score}.`, "event");
     refreshPoll({ soft: true });
     saveState();
     render();
@@ -1524,8 +1760,8 @@
     state.week += 1;
     state.resources.time = 3 + (state.resources.staff >= 8 ? 1 : 0);
     state.resources.energy = state.resources.maxEnergy;
-    state.resources.money += 2500 + Math.round(state.resources.capital * 90);
-    state.resources.volunteers += Math.max(1, Math.round(2 + (state.resources.trust - 50) / 12));
+    state.resources.money += Math.round((2200 + state.resources.capital * 70) * getDifficulty().resourceMultiplier);
+    state.resources.volunteers += Math.max(0, Math.round((1.5 + (state.resources.trust - 50) / 16) * getDifficulty().resourceMultiplier));
     state.resources.media = clamp(state.resources.media * 0.92, 0, 100);
 
     const nextEvent = drawEvent();
@@ -1553,6 +1789,7 @@
 
   function opponentTurn() {
     const opponent = byId(DATA.opponents, state.opponentId);
+    const difficulty = getDifficulty();
     const target = weightedPick(state.regions, (region) => {
       const support = effectiveRegionSupport(region);
       const home = opponent.homeRegion === region.id ? 1.6 : 1;
@@ -1561,32 +1798,32 @@
     });
     const moveRoll = Math.random();
     if (moveRoll < 0.28) {
-      const pressure = opponent.stats.attack / 70;
+      const pressure = opponent.stats.attack / 70 * difficulty.opponentPressure;
       applyNumber(target, "support", -randomBetween(0.6, 1.5) * pressure, 12, 88);
       applyNumber(state.resources, "trust", -0.25 * pressure, 0, 100);
       addLog(`${opponent.name} attacked your record in ${target.name}.`, "opponent");
     } else if (moveRoll < 0.55) {
-      const pressure = opponent.stats.field / 80;
+      const pressure = opponent.stats.field / 80 * difficulty.opponentPressure;
       applyNumber(target, "support", -randomBetween(0.5, 1.2) * pressure, 12, 88);
       applyNumber(target, "ground", -randomBetween(0.2, 0.7) * pressure, -10, 18);
       addLog(`${opponent.name}'s organizers worked ${target.name}.`, "opponent");
     } else if (moveRoll < 0.78) {
-      const pressure = opponent.stats.fundraising / 90;
+      const pressure = opponent.stats.fundraising / 90 * difficulty.opponentPressure;
       applyNumber(target, "support", -randomBetween(0.4, 1.1) * pressure, 12, 88);
       addLog(`${opponent.name} bought fresh advertising around ${target.name}.`, "opponent");
     } else {
-      const pressure = opponent.stats.debate / 100;
+      const pressure = opponent.stats.debate / 100 * difficulty.opponentPressure;
       applyNumber(state.resources, "debate", -randomBetween(0.4, 1.1) * pressure, 0, 100);
       addLog(`${opponent.name} sharpened debate contrasts for the closing stretch.`, "opponent");
     }
 
     Object.entries(opponent.basePressure?.regions || {}).forEach(([regionId, amount]) => {
       const region = getRegion(regionId);
-      if (region) applyNumber(region, "support", -amount * 0.12, 12, 88);
+      if (region) applyNumber(region, "support", -amount * 0.12 * difficulty.opponentPressure, 12, 88);
     });
     Object.entries(opponent.basePressure?.groups || {}).forEach(([groupId, amount]) => {
       const group = getVoter(groupId);
-      if (group) applyNumber(group, "support", -amount * 0.12, 12, 88);
+      if (group) applyNumber(group, "support", -amount * 0.12 * difficulty.opponentPressure, 12, 88);
     });
   }
 
@@ -1620,14 +1857,15 @@
   }
 
   function runElection() {
+    const difficulty = getDifficulty();
     const rows = state.regions.map((region) => {
       const support = effectiveRegionSupport(region);
       const turnout = effectiveRegionTurnout(region);
       const lateTrust = (state.resources.trust - 50) * 0.035;
-      const debate = (state.resources.debate - 50) * 0.025;
+      const debate = ((state.resources.debate - 50) * difficulty.debateWeight) + ((state.debate?.score || 0) * 0.035);
       const field = region.ground * 0.12;
-      const error = randomBetween(-3.2, 3.2);
-      const finalSupport = clamp(support + lateTrust + debate + field + error, 15, 85);
+      const error = randomBetween(-difficulty.electionError, difficulty.electionError);
+      const finalSupport = clamp(support + lateTrust + debate + field + error - difficulty.supportPenalty * 0.25, 15, 85);
       const voters = Math.round(region.population * turnout / 100);
       const playerVotes = Math.round(voters * finalSupport / 100);
       const opponentVotes = voters - playerVotes;
@@ -1648,14 +1886,15 @@
     const opponentVotes = rows.reduce((sum, row) => sum + row.opponentVotes, 0);
     const totalVotes = playerVotes + opponentVotes;
     const playerShare = playerVotes / Math.max(1, totalVotes) * 100;
-    const margin = playerShare - 50;
+    const opponentShare = 100 - playerShare;
+    const margin = playerShare - opponentShare;
     state.results = {
       rows,
       playerVotes,
       opponentVotes,
       totalVotes,
       playerShare,
-      opponentShare: 100 - playerShare,
+      opponentShare,
       margin,
       won: playerVotes > opponentVotes,
       analysis: buildAnalysis(rows, playerShare, margin)
@@ -1713,6 +1952,7 @@
   function beginGoverning() {
     if (!state.results?.won) return;
     const office = byId(DATA.officeLadder, state.candidate.officeId) || scenarioOffice();
+    const difficulty = getDifficulty();
     state.phase = "governing";
     state.govTab = "briefing";
     state.career.currentOfficeId = office.id;
@@ -1724,10 +1964,10 @@
     state.governing = {
       month: 1,
       termMonths: 18,
-      approval: clamp(Math.round(state.results.playerShare + 4), 38, 72),
+      approval: clamp(Math.round(state.results.playerShare + 2 - difficulty.supportPenalty * 0.4), 34, 68),
       trust: Math.round(state.resources.trust),
-      capital: Math.max(5, Math.round(state.resources.capital + Math.max(0, state.results.margin))),
-      budget: 100,
+      capital: clamp(Math.round(4 + state.resources.capital * 0.35 + Math.max(0, state.results.margin) * difficulty.govCapitalMargin), 2, difficulty.startingGovCapitalMax),
+      budget: difficulty.startBudget,
       deficit: 0,
       metrics: {
         education: 50,
@@ -1743,9 +1983,11 @@
         trust: Math.round(state.resources.trust)
       },
       staff: {},
-      factions: (DATA.factions || []).map((faction) => ({ ...faction })),
+      factions: (DATA.factions || []).map((faction) => ({ ...faction, support: clamp(faction.support - difficulty.votePenalty, 20, 82) })),
       passedPolicies: [],
       failedPolicies: [],
+      oppositionBill: null,
+      oppositionCompleted: [],
       completedEvents: [],
       event: byId(DATA.governingEvents, "administrationFirstMeeting"),
       log: ["Election night is over. The first administration meeting is waiting."]
@@ -1763,7 +2005,7 @@
           <div>
             <p class="eyebrow">Month ${gov.month} of ${gov.termMonths}</p>
             <h1>${escapeHTML(state.candidate.name)} · ${escapeHTML(office.name)}</h1>
-            <p>Approval ${gov.approval}% · Budget ${gov.budget} · Political capital ${gov.capital}</p>
+            <p>Approval ${Math.round(gov.approval)}% · Budget ${Math.round(gov.budget)} · Political capital ${Math.round(gov.capital)}</p>
           </div>
           <div class="header-actions">
             <button class="button secondary" id="manualSave" type="button">Save Career</button>
@@ -1773,6 +2015,7 @@
         </div>
         ${renderGoverningResourceBar()}
         ${gov.event ? renderGoverningEvent(gov.event) : ""}
+        ${gov.oppositionBill ? renderOppositionBill(gov.oppositionBill) : ""}
         ${state.tutorial?.active && state.tutorial.step >= 5 ? renderGoverningTutorialPanel() : ""}
         <div class="tab-row" role="tablist">
           ${GOV_TABS.map((tab) => `<button class="${(state.govTab || "briefing") === tab.id ? "active" : ""}" data-gov-tab="${tab.id}" type="button">${escapeHTML(tab.name)}</button>`).join("")}
@@ -1786,25 +2029,39 @@
   function renderGoverningResourceBar() {
     const gov = state.governing;
     const resources = [
-      ["Approval", `${gov.approval}%`],
-      ["Trust", `${gov.trust}%`],
-      ["Budget", String(gov.budget)],
-      ["Deficit", String(gov.deficit)],
-      ["Capital", String(gov.capital)],
-      ["Education", `${gov.metrics.education}`],
-      ["Housing", `${gov.metrics.housing}`],
-      ["Safety", `${gov.metrics.safety}`]
+      ["Approval", `${Math.round(gov.approval)}%`],
+      ["Trust", `${Math.round(gov.trust)}%`],
+      ["Budget", String(Math.round(gov.budget))],
+      ["Deficit", String(Math.round(gov.deficit))],
+      ["Capital", String(Math.round(gov.capital))],
+      ["Education", `${Math.round(gov.metrics.education)}`],
+      ["Housing", `${Math.round(gov.metrics.housing)}`],
+      ["Safety", `${Math.round(gov.metrics.safety)}`]
     ];
     return `
       <div class="resource-grid">
         ${resources.map(([label, value]) => `
-          <div>
+          <div title="${escapeHTML(governingMetricDescription(label))}">
             <span>${escapeHTML(label)}</span>
             <strong>${escapeHTML(value)}</strong>
+            <small>${escapeHTML(governingMetricDescription(label))}</small>
           </div>
         `).join("")}
       </div>
     `;
+  }
+
+  function governingMetricDescription(label) {
+    return {
+      Approval: "Public standing. Low approval makes future elections and crises harder.",
+      Trust: "How much voters believe your explanations during tradeoffs.",
+      Budget: "Available governing capacity for policies and deals.",
+      Deficit: "Accumulated overspending that damages approval over time.",
+      Capital: "Leverage for staff, factions, bills, and negotiations.",
+      Education: "School outcomes and credibility with parents and teachers.",
+      Housing: "Affordability, supply, and renter/homeowner pressure.",
+      Safety: "Public-safety confidence and crisis vulnerability."
+    }[label] || "Governing measure";
   }
 
   function renderGoverningEvent(eventData) {
@@ -1818,6 +2075,27 @@
         <div class="event-choices">
           ${eventData.choices.map((choice, index) => `
             <button type="button" data-gov-event-choice="${index}">
+              <strong>${escapeHTML(choice.label)}</strong>
+              <span>${escapeHTML(effectSummary(choice.effects))}</span>
+            </button>
+          `).join("")}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderOppositionBill(bill) {
+    return `
+      <article class="event-panel opposition-panel">
+        <div>
+          <p class="eyebrow">Opposition Bill</p>
+          <h2>${escapeHTML(bill.name)}</h2>
+          <p>${escapeHTML(bill.text)}</p>
+          <p><strong>Sponsor:</strong> ${escapeHTML(bill.sponsor)}</p>
+        </div>
+        <div class="event-choices">
+          ${bill.choices.map((choice, index) => `
+            <button type="button" data-opposition-choice="${index}">
               <strong>${escapeHTML(choice.label)}</strong>
               <span>${escapeHTML(effectSummary(choice.effects))}</span>
             </button>
@@ -1904,26 +2182,55 @@
   }
 
   function renderAdministrationTab() {
-    const appointedIds = new Set(Object.values(state.governing.staff));
+    const roles = [...new Set((DATA.staff || []).map((person) => person.role))];
     return `
       <div class="section-intro">
         <h2>Administration</h2>
         <p>Staff choices shape governing outcomes. Strong advisors improve policy, legislation, media response, budget discipline, or coalition management, but no team is perfect.</p>
       </div>
-      <div class="staff-grid">
-        ${(DATA.staff || []).map((person) => {
-          const appointed = appointedIds.has(person.id);
+      <div class="staff-role-list">
+        ${roles.map((role) => {
+          const currentId = state.governing.staff[role];
+          const current = byId(DATA.staff, currentId);
           return `
-            <article class="staff-card ${appointed ? "appointed" : ""}">
-              <h3>${escapeHTML(person.name)}</h3>
-              <p><strong>${escapeHTML(person.role)}</strong> · ${escapeHTML(person.trait)}</p>
-              <p>${escapeHTML(person.ideology)} · competence ${person.competence} · loyalty ${person.loyalty}</p>
-              <button class="button secondary" data-appoint-staff="${person.id}" type="button" ${appointed ? "disabled" : ""}>${appointed ? "Appointed" : "Appoint"}</button>
-            </article>
+            <section class="staff-role-section">
+              <div class="staff-role-head">
+                <h3>${escapeHTML(role)}</h3>
+                <span>${current ? `Current: ${escapeHTML(current.name)}` : "No appointment yet"}</span>
+              </div>
+              <div class="staff-grid">
+                ${(DATA.staff || []).filter((person) => person.role === role).map((person) => {
+                  const appointed = currentId === person.id;
+                  const replacing = currentId && !appointed;
+                  return `
+                    <article class="staff-card ${appointed ? "appointed" : ""}">
+                      <h3>${escapeHTML(person.name)}</h3>
+                      <p><strong>${escapeHTML(person.trait)}</strong></p>
+                      <p>${escapeHTML(person.ideology)} · competence ${person.competence} · loyalty ${person.loyalty}</p>
+                      <p class="card-copy">${escapeHTML(effectSummaryGoverningStaff(person.effects))}</p>
+                      <button class="button secondary" data-appoint-staff="${person.id}" type="button" ${appointed ? "disabled" : ""}>${appointed ? "Appointed" : replacing ? "Replace" : "Appoint"}</button>
+                    </article>
+                  `;
+                }).join("")}
+              </div>
+            </section>
           `;
         }).join("")}
       </div>
     `;
+  }
+
+  function effectSummaryGoverningStaff(effects = {}) {
+    const parts = [];
+    if (effects.administration) parts.push(`${signed(effects.administration)} administration`);
+    if (effects.policy) parts.push(`${signed(effects.policy)} policy skill`);
+    if (effects.legislative) parts.push(`${signed(effects.legislative)} legislative skill`);
+    if (effects.budget) parts.push(`${signed(effects.budget)} budget discipline`);
+    if (effects.media) parts.push(`${signed(effects.media)} media handling`);
+    if (effects.capital) parts.push(`${signed(effects.capital)} capital`);
+    if (effects.trust) parts.push(`${signed(effects.trust)} trust`);
+    if (effects.groups) parts.push("moves voter groups");
+    return parts.join(" · ") || "No immediate effect";
   }
 
   function renderLawsTab() {
@@ -1931,6 +2238,10 @@
       <div class="section-intro">
         <h2>Policy Cards</h2>
         <p>Policies affect budget, approval, metrics, voter groups, and legislative factions. Some benefits are immediate; others shape your long-term record.</p>
+      </div>
+      <div class="opposition-docket">
+        <h3>Opposition Docket</h3>
+        <p>${state.governing.oppositionBill ? `${escapeHTML(state.governing.oppositionBill.name)} is active and must be decided.` : "Opposition bills can appear between months, especially on harder modes. Deals may help one faction while angering another."}</p>
       </div>
       <div class="policy-card-grid">
         ${(DATA.governingPolicies || []).map((policy) => renderGoverningPolicy(policy)).join("")}
@@ -1941,20 +2252,30 @@
   function renderGoverningPolicy(policy) {
     const passed = state.governing.passedPolicies.includes(policy.id);
     const votes = estimatePolicyVotes(policy);
-    const canPass = !passed && state.governing.capital >= policy.capital && state.governing.budget >= policy.cost && votes.yes > votes.total / 2;
+    const cost = policyBudgetCost(policy);
+    const capital = policyCapitalCost(policy);
+    const canPass = !passed && state.governing.capital >= capital && state.governing.budget >= cost && votes.yes > votes.total / 2;
     return `
       <article class="law-card ${passed ? "passed" : ""}">
         <span>${escapeHTML(policy.area)}</span>
         <h3>${escapeHTML(policy.name)}</h3>
         <p>${escapeHTML(policy.text)}</p>
         <div class="law-meta">
-          <strong>Cost ${policy.cost}</strong>
-          <strong>Capital ${policy.capital}</strong>
+          <strong>Cost ${cost}</strong>
+          <strong>Capital ${capital}</strong>
           <strong>Votes ${votes.yes}/${votes.total}</strong>
         </div>
         <button class="button primary" data-pass-policy="${policy.id}" type="button" ${canPass ? "" : "disabled"}>${passed ? "Passed" : canPass ? "Pass Bill" : "Needs Votes or Budget"}</button>
       </article>
     `;
+  }
+
+  function policyBudgetCost(policy) {
+    return Math.max(1, Math.round((policy.cost || 0) * getDifficulty().policyCost));
+  }
+
+  function policyCapitalCost(policy) {
+    return Math.max(1, Math.round((policy.capital || 0) * getDifficulty().policyCapital));
   }
 
   function renderLegislatureTab() {
@@ -1979,6 +2300,7 @@
 
   function renderBudgetTab() {
     const gov = state.governing;
+    const difficulty = getDifficulty();
     const rows = [
       ["Education", gov.metrics.education],
       ["Healthcare", gov.metrics.healthcare],
@@ -1998,7 +2320,7 @@
             <strong>${gov.budget}</strong>
             <span>Available budget · deficit ${gov.deficit}</span>
           </div>
-          <p class="card-copy">Overspending raises the deficit and creates future attacks. Underspending can leave services weak and approval brittle.</p>
+          <p class="card-copy">${escapeHTML(difficulty.name)} mode: monthly revenue is ${difficulty.monthlyRevenue}, policy costs are scaled by ${difficulty.policyCost.toFixed(2)}, and deficits drag approval more on harder modes.</p>
         </article>
         <article class="dashboard-card wide-card">
           <h2>Public Outcomes</h2>
@@ -2037,6 +2359,9 @@
     });
     document.querySelectorAll("[data-gov-event-choice]").forEach((button) => {
       button.addEventListener("click", () => chooseGoverningEvent(Number(button.dataset.govEventChoice)));
+    });
+    document.querySelectorAll("[data-opposition-choice]").forEach((button) => {
+      button.addEventListener("click", () => chooseOppositionBill(Number(button.dataset.oppositionChoice)));
     });
     document.querySelectorAll("[data-appoint-staff]").forEach((button) => {
       button.addEventListener("click", () => appointStaff(button.dataset.appointStaff));
@@ -2087,6 +2412,18 @@
     render();
   }
 
+  function chooseOppositionBill(choiceIndex) {
+    const bill = state.governing.oppositionBill;
+    const choice = bill?.choices?.[choiceIndex];
+    if (!bill || !choice) return;
+    applyGoverningEffects(choice.effects);
+    state.governing.oppositionCompleted.push(bill.id);
+    state.governing.log.unshift(`${bill.name}: ${choice.label}`);
+    state.governing.oppositionBill = null;
+    saveState();
+    render();
+  }
+
   function appointStaff(staffId) {
     const person = byId(DATA.staff, staffId);
     if (!person) return;
@@ -2113,7 +2450,7 @@
     const yes = state.governing.factions.reduce((sum, faction) => {
       const issueFit = faction.priorities.includes(policy.area.toLowerCase()) || faction.priorities.some((priority) => policy.id.toLowerCase().includes(priority.toLowerCase())) ? 12 : 0;
       const policyMod = policy.factions?.[faction.id] || 0;
-      const chance = faction.support + issueFit + policyMod * 8 + (state.governing.trust - 50) * 0.15 + state.governing.capital * 0.25;
+      const chance = faction.support + issueFit + policyMod * 8 + (state.governing.trust - 50) * 0.12 + state.governing.capital * 0.2 - getDifficulty().votePenalty;
       return sum + (chance >= 50 ? faction.seats : 0);
     }, 0);
     return { yes, total };
@@ -2123,10 +2460,12 @@
     const policy = byId(DATA.governingPolicies, policyId);
     if (!policy || state.governing.passedPolicies.includes(policyId)) return;
     const votes = estimatePolicyVotes(policy);
-    if (votes.yes <= votes.total / 2 || state.governing.capital < policy.capital || state.governing.budget < policy.cost) return;
-    state.governing.capital -= policy.capital;
+    const cost = policyBudgetCost(policy);
+    const capital = policyCapitalCost(policy);
+    if (votes.yes <= votes.total / 2 || state.governing.capital < capital || state.governing.budget < cost) return;
+    state.governing.capital -= capital;
     state.governing.passedPolicies.push(policy.id);
-    applyGoverningEffects({ approval: policy.metrics.approval || 0, groups: policy.groups, factions: policy.factions, metrics: policy.metrics });
+    applyGoverningEffects({ groups: policy.groups, factions: policy.factions, metrics: { ...policy.metrics, budget: -cost } });
     state.career.history.unshift({ type: "Law passed", text: `${policy.name} became part of your governing record.` });
     state.governing.log.unshift(`Passed ${policy.name}.`);
     saveState();
@@ -2150,6 +2489,13 @@
     return eligible[Math.floor(Math.random() * eligible.length)];
   }
 
+  function drawOppositionBill() {
+    const eligible = (DATA.oppositionBills || []).filter((bill) => !state.governing.oppositionCompleted.includes(bill.id));
+    if (!eligible.length) return null;
+    if (Math.random() > getDifficulty().oppositionChance) return null;
+    return eligible[Math.floor(Math.random() * eligible.length)];
+  }
+
   function advanceGoverningMonth() {
     const gov = state.governing;
     if (gov.event) {
@@ -2157,21 +2503,32 @@
       render();
       return;
     }
+    if (gov.oppositionBill) {
+      gov.log.unshift("Decide the active opposition bill before advancing.");
+      render();
+      return;
+    }
     if (gov.month >= gov.termMonths) {
-      gov.log.unshift("Term review reached. Future builds will open the next campaign decision from here.");
       state.career.legacy = legacyLabel();
+      state.phase = "termReview";
+      state.termReview = buildTermReview();
+      state.career.history.unshift({
+        type: "Term completed",
+        text: `${state.candidate.name} completed a term as ${byId(DATA.officeLadder, state.career?.currentOfficeId)?.name || state.candidate.office} with ${state.termReview.approval}% approval and the legacy label ${state.termReview.legacy}.`
+      });
       saveState();
       render();
       return;
     }
     gov.month += 1;
-    gov.budget += 6;
-    gov.capital = clamp(gov.capital + 1, 0, 99);
-    gov.approval = clamp(gov.approval + (gov.trust - 50) * 0.015 - gov.deficit * 0.04, 10, 90);
+    gov.budget += getDifficulty().monthlyRevenue;
+    gov.capital = clamp(gov.capital + (getDifficulty().id === "advanced" ? 0 : 1), 0, 99);
+    gov.approval = clamp(gov.approval + (gov.trust - 50) * 0.012 - gov.deficit * getDifficulty().approvalDrag, 10, 90);
     gov.factions.forEach((faction) => {
-      faction.support = clamp(faction.support + randomBetween(-1.2, 1.2), 0, 100);
+      faction.support = clamp(faction.support + randomBetween(-getDifficulty().factionDrift, getDifficulty().factionDrift * 0.75), 0, 100);
     });
     gov.event = drawGoverningEvent();
+    if (!gov.event) gov.oppositionBill = drawOppositionBill();
     gov.log.unshift(`Month ${gov.month} begins. Budget revenue arrives and factions reassess the administration.`);
     saveState();
     render();
@@ -2187,6 +2544,205 @@
     return "Pragmatic Survivor";
   }
 
+  function buildTermReview() {
+    const gov = state.governing;
+    const strongestMetrics = Object.entries(gov.metrics || {})
+      .filter(([key]) => key !== "trust")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const weakestMetrics = Object.entries(gov.metrics || {})
+      .filter(([key]) => key !== "trust")
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 3);
+    const notes = [];
+    if (gov.approval >= 65) notes.push("Your approval gives you room to seek a higher office or ask voters for another term.");
+    else if (gov.approval >= 50) notes.push("Your approval is workable, but the next campaign will need a clear explanation of what changed during the term.");
+    else notes.push("Low approval will make the next race difficult unless you rebuild trust before asking for a promotion.");
+    if ((gov.passedPolicies || []).length) notes.push(`${gov.passedPolicies.length} major policies became part of your record.`);
+    else notes.push("You leave office without a major enacted policy, which opponents can frame as drift.");
+    if (gov.deficit > 8) notes.push("The deficit is now a political liability and will follow you into the next race.");
+    else if (gov.budget >= 80) notes.push("Your budget position is strong, giving you a fiscal argument for future campaigns.");
+    if (gov.trust >= 70) notes.push("High public trust is your strongest long-term asset.");
+    return {
+      legacy: legacyLabel(),
+      approval: Math.round(gov.approval),
+      trust: Math.round(gov.trust),
+      budget: Math.round(gov.budget),
+      deficit: Math.round(gov.deficit),
+      capital: Math.round(gov.capital),
+      passedPolicies: [...(gov.passedPolicies || [])],
+      failedPolicies: [...(gov.failedPolicies || [])],
+      strongestMetrics,
+      weakestMetrics,
+      notes
+    };
+  }
+
+  function renderTermReview() {
+    const review = state.termReview || buildTermReview();
+    const office = byId(DATA.officeLadder, state.career?.currentOfficeId) || scenarioOffice();
+    const passed = review.passedPolicies.map((id) => byId(DATA.governingPolicies, id)?.name || id);
+    root.innerHTML = `
+      <section class="results-shell">
+        <div class="results-hero won">
+          <p class="eyebrow">Term Review</p>
+          <h1>${escapeHTML(review.legacy)}</h1>
+          <p>${escapeHTML(state.candidate.name)} completed a term as ${escapeHTML(office?.name || state.candidate.office)} with ${review.approval}% approval, ${review.trust}% trust, and a budget position of ${review.budget}.</p>
+          <div class="result-totals">
+            <div><span>Approval</span><strong>${review.approval}%</strong><em>public standing</em></div>
+            <div><span>Budget</span><strong>${review.budget}</strong><em>deficit ${review.deficit}</em></div>
+          </div>
+          <div class="button-row">
+            <button class="button primary" data-career-next="reelection" type="button">Run for Reelection</button>
+            <button class="button primary" data-career-next="higher" type="button">Run for Higher Office</button>
+            <button class="button secondary" data-career-next="appointment" type="button">Accept Appointment Offer</button>
+            <button class="button secondary" id="returnToCareer" type="button">Review Career</button>
+          </div>
+        </div>
+        <div class="results-grid">
+          <article class="dashboard-card wide-card">
+            <h2>Record in Office</h2>
+            ${passed.length ? passed.map((name) => `<p><strong>${escapeHTML(name)}</strong> became part of your governing record.</p>`).join("") : "<p>No major policies passed this term.</p>"}
+          </article>
+          <article class="dashboard-card">
+            <h2>Strongest Outcomes</h2>
+            ${review.strongestMetrics.map(([key, value]) => `<p><strong>${escapeHTML(metricLabel(key))}</strong> · ${Math.round(value)}</p>`).join("")}
+          </article>
+          <article class="dashboard-card">
+            <h2>Weakest Outcomes</h2>
+            ${review.weakestMetrics.map(([key, value]) => `<p><strong>${escapeHTML(metricLabel(key))}</strong> · ${Math.round(value)}</p>`).join("")}
+          </article>
+          <article class="dashboard-card wide-card">
+            <h2>Career Analysis</h2>
+            ${review.notes.map((note) => `<p>${escapeHTML(note)}</p>`).join("")}
+          </article>
+        </div>
+      </section>
+    `;
+    document.querySelector("#returnToCareer")?.addEventListener("click", () => {
+      state.phase = "governing";
+      state.govTab = "career";
+      saveState();
+      render();
+    });
+    document.querySelectorAll("[data-career-next]").forEach((button) => {
+      button.addEventListener("click", () => chooseCareerNextStep(button.dataset.careerNext));
+    });
+  }
+
+  function chooseCareerNextStep(choice) {
+    if (choice === "appointment") {
+      acceptAppointmentOffer();
+      return;
+    }
+    launchNextCampaign(choice === "higher");
+  }
+
+  function launchNextCampaign(higherOffice = false) {
+    const previous = JSON.parse(JSON.stringify(state));
+    const currentOffice = byId(DATA.officeLadder, previous.career?.currentOfficeId) || scenarioOffice();
+    const ladder = (DATA.officeLadder || []).filter((office) => !office.id.startsWith("appointed")).sort((a, b) => a.tier - b.tier);
+    const nextOffice = higherOffice ? ladder.find((office) => office.tier > (currentOffice?.tier || 1)) || currentOffice : currentOffice;
+    const scenario = nextOffice?.id === "schoolBoard" ? byId(DATA.scenarios, "schoolBoardDistrict") : byId(DATA.scenarios, "stateHouseSwingDistrict") || DATA.scenarios[0];
+    const formValues = {
+      candidateName: previous.candidate.name,
+      candidateAge: String((previous.candidate.age || 35) + 2),
+      homeState: previous.candidate.homeStateId || scenario.stateId || "pa",
+      education: previous.candidate.educationId || "bachelors",
+      difficulty: previous.difficultyId || "intermediate",
+      scenario: scenario.id,
+      background: previous.candidate.backgroundId || "teacher",
+      party: previous.candidate.partyId || "independent",
+      ideology: previous.candidate.ideologyId || "centristIndependent",
+      style: previous.candidate.styleId || "pragmatic",
+      trait: previous.candidate.traitId || "coalitionBuilder",
+      homeRegion: previous.candidate.homeRegionId || "pineSuburbs",
+      issueOne: previous.candidate.topIssues?.[0] || "education",
+      issueTwo: previous.candidate.topIssues?.[1] || "housing",
+      opponent: previous.opponentId || scenario.defaultOpponent,
+      tutorial: "false"
+    };
+    startCampaign({ get: (key) => formValues[key] || "" });
+    state.candidate.office = nextOffice?.name || scenario.office;
+    state.candidate.officeId = nextOffice?.id || scenario.officeId;
+    const homeState = byId(DATA.usStates, state.candidate.homeStateId);
+    const difficulty = getDifficulty(state.difficultyId);
+    state.log = state.log.map((entry) => {
+      if (!entry.message?.includes(" U.S. career campaign for ")) return entry;
+      return {
+        ...entry,
+        message: `${state.candidate.name} launched a ${difficulty.name.toLowerCase()} U.S. career campaign for ${state.candidate.office} in ${homeState?.name || "a home state"}.`
+      };
+    });
+    state.career = {
+      ...previous.career,
+      currentOfficeId: nextOffice?.id || previous.career?.currentOfficeId,
+      history: [...(previous.career?.history || [])],
+      skills: { ...BASE_SKILLS, ...(previous.career?.skills || {}) },
+      reputation: previous.career?.reputation || ["Incumbent"],
+      legacy: previous.career?.legacy || "Unwritten"
+    };
+    state.career.skills.nameRecognition = (state.career.skills.nameRecognition || 10) + (higherOffice ? 4 : 2);
+    state.career.history.unshift({
+      type: higherOffice ? "Launched higher-office campaign" : "Launched reelection campaign",
+      text: `${state.candidate.name} began a campaign for ${state.candidate.office}.`
+    });
+    addLog(`${higherOffice ? "Higher office" : "Reelection"} campaign launched from your governing record.`, "major");
+    saveState();
+    render();
+  }
+
+  function acceptAppointmentOffer() {
+    const previous = JSON.parse(JSON.stringify(state));
+    const office = byId(DATA.officeLadder, "appointedEducation");
+    state.phase = "governing";
+    state.govTab = "briefing";
+    state.candidate.office = office.name;
+    state.candidate.officeId = office.id;
+    state.career.currentOfficeId = office.id;
+    state.career.history.unshift({
+      type: "Appointment accepted",
+      text: `${state.candidate.name} accepted an appointment as ${office.name}.`
+    });
+    state.governing = {
+      ...previous.governing,
+      month: 1,
+      termMonths: 12,
+      approval: clamp(previous.termReview?.approval || previous.governing?.approval || 52, 30, 74),
+      capital: Math.max(3, Math.round((previous.termReview?.capital || previous.governing?.capital || 4) / 2)),
+      budget: Math.max(40, Math.round((previous.termReview?.budget || previous.governing?.budget || 70) * 0.65)),
+      oppositionBill: null,
+      event: {
+        id: "appointmentMandate",
+        title: "Appointment Offer Accepted",
+        body: "The appointment gives you administrative power without a fresh election. Legislators will test whether you are governing for students or building your next campaign.",
+        choices: [
+          { label: "Promise a quiet implementation term.", effects: { trust: 1, capital: 1, metrics: { administration: 2, education: 1 } } },
+          { label: "Announce a bold literacy push.", effects: { approval: 1, capital: -1, metrics: { education: 4, budget: -4 }, groups: { parents: 2, teachers: 1 } } },
+          { label: "Use the post to build a statewide profile.", effects: { approval: -1, media: 3, capital: 1, groups: { partyActivists: 1, independents: -1 } } }
+        ]
+      },
+      log: ["Appointment accepted. A new administrative chapter begins."]
+    };
+    saveState();
+    render();
+  }
+
+  function metricLabel(key) {
+    return {
+      education: "Education",
+      healthcare: "Healthcare",
+      housing: "Housing",
+      economy: "Economy",
+      environment: "Environment",
+      safety: "Public safety",
+      administration: "Administration",
+      rural: "Rural access",
+      inequality: "Inequality",
+      transportation: "Transportation"
+    }[key] || key;
+  }
+
   function renderResults() {
     const results = state.results;
     const opponent = byId(DATA.opponents, state.opponentId);
@@ -2195,7 +2751,7 @@
         <div class="results-hero ${results.won ? "won" : "lost"}">
           <p class="eyebrow">Election Night</p>
           <h1>${escapeHTML(results.analysis.rank)}</h1>
-          <p>${escapeHTML(state.candidate.name)} ${results.won ? "defeated" : "lost to"} ${escapeHTML(opponent.name)} by ${Math.abs(results.margin).toFixed(1)} points.</p>
+          <p>${escapeHTML(state.candidate.name)} ${results.won ? "defeated" : "lost to"} ${escapeHTML(opponent.name)} by ${Math.abs(results.margin).toFixed(1)} percentage points.</p>
           <div class="result-totals">
             <div><span>${escapeHTML(state.candidate.name)}</span><strong>${formatNumber(results.playerVotes)}</strong><em>${results.playerShare.toFixed(1)}%</em></div>
             <div><span>${escapeHTML(opponent.name)}</span><strong>${formatNumber(results.opponentVotes)}</strong><em>${results.opponentShare.toFixed(1)}%</em></div>

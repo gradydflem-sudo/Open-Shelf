@@ -127,9 +127,9 @@ window.CommonPagesCivicData.actions = [
     name: "Debate prep",
     category: "Strategy",
     target: "none",
-    text: "Practice hard questions and tighten your answers before the cameras turn on.",
+    text: "Practice hard questions, rehearse a clean answer, and prepare for the debate hall.",
     cost: { time: 1, energy: 1, staff: 1 },
-    effects: { debate: 8, trust: 1 }
+    effects: { debate: 15, trust: 1.2, media: 1 }
   },
   {
     id: "oppoResearch",

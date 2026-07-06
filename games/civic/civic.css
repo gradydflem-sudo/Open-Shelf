@@ -77,6 +77,36 @@
   padding: 18px;
 }
 
+.setup-command-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.setup-command-board div {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 14px;
+  background: #25211d;
+  color: #fffaf1;
+  border-radius: 8px;
+}
+
+.setup-command-board span {
+  color: rgba(255, 250, 241, 0.68);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.setup-command-board strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
 .scenario-note span,
 .saved-campaign span,
 .card-copy,
@@ -200,7 +230,7 @@
 .result-totals div {
   display: grid;
   gap: 5px;
-  min-height: 76px;
+  min-height: 96px;
   padding: 13px;
   background: #25211d;
   color: #fffaf1;
@@ -217,6 +247,13 @@
 .resource-grid strong,
 .result-totals strong {
   font-size: clamp(1.15rem, 2vw, 1.55rem);
+}
+
+.resource-grid small {
+  color: rgba(255, 250, 241, 0.58);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .tab-row {
@@ -460,9 +497,45 @@
   gap: 18px;
 }
 
-.region-map {
+.map-column {
   position: sticky;
   top: 92px;
+  align-self: start;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #5c5349;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.map-legend span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.map-legend b {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border-radius: 999px;
+  background: #2d6a55;
+}
+
+.map-legend b.toss {
+  background: #9a7527;
+}
+
+.map-legend b.behind {
+  background: #9f4a3d;
+}
+
+.region-map {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: minmax(118px, 1fr);
@@ -490,6 +563,13 @@
 
 .map-tile strong {
   font-size: 1.4rem;
+}
+
+.map-tile em {
+  color: rgba(255, 250, 241, 0.74);
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .map-tile.safe {
@@ -695,11 +775,51 @@
   margin-bottom: 0;
 }
 
+.focus-card p {
+  margin: 0;
+  color: #665d53;
+  line-height: 1.45;
+}
+
 .focus-card ol {
+  display: grid;
+  gap: 8px;
   margin: 0;
   padding-left: 20px;
   color: #655b50;
   line-height: 1.55;
+}
+
+.focus-card li span {
+  display: block;
+  color: #7a7065;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.focus-impact,
+.opposition-docket {
+  padding: 11px;
+  color: #5a4d3f;
+  background: #fff8ea;
+  border: 1px solid #dfcba9;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.opposition-docket {
+  margin-bottom: 14px;
+}
+
+.opposition-docket h3 {
+  margin: 0 0 5px;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.opposition-docket p {
+  margin: 0;
 }
 
 .focus-card.complete {
@@ -787,6 +907,100 @@
   gap: 14px;
 }
 
+.debate-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.debate-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(300px, 1.2fr);
+  gap: 18px;
+  padding: clamp(18px, 3vw, 28px);
+  color: #fffaf1;
+  background: #25211d;
+  border-radius: 8px;
+}
+
+.debate-stage h2 {
+  margin-bottom: 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+}
+
+.debate-stage p {
+  color: rgba(255, 250, 241, 0.78);
+  line-height: 1.55;
+}
+
+.debate-dais {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.debate-dais div {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 13px;
+  background: rgba(255, 250, 241, 0.09);
+  border: 1px solid rgba(255, 250, 241, 0.18);
+  border-radius: 8px;
+}
+
+.debate-dais span {
+  color: rgba(255, 250, 241, 0.62);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.debate-dais strong {
+  line-height: 1.25;
+}
+
+.debate-options,
+.debate-question-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.debate-options button,
+.debate-question-card {
+  display: grid;
+  gap: 9px;
+  padding: 16px;
+  text-align: left;
+  color: var(--ink);
+  background: #fffdf8;
+  border: 1px solid #ddd4c6;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(42, 35, 28, 0.07);
+}
+
+.debate-options button {
+  cursor: pointer;
+}
+
+.debate-options button:hover,
+.debate-question-card:hover {
+  border-color: #a86b2d;
+}
+
+.debate-options span,
+.debate-question-card p {
+  color: #665d53;
+  line-height: 1.45;
+}
+
+.debate-options em {
+  color: #2d6a55;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .career-layout,
 .budget-layout {
   display: grid;
@@ -858,6 +1072,39 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
   gap: 12px;
+}
+
+.staff-role-list {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-role-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f1e5;
+  border: 1px solid #e0d5c4;
+  border-radius: 8px;
+}
+
+.staff-role-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.staff-role-head h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.45rem;
+}
+
+.staff-role-head span {
+  color: #665d53;
+  font-weight: 900;
 }
 
 .staff-card,
@@ -1005,11 +1252,13 @@
   .polling-layout,
   .career-layout,
   .budget-layout,
+  .debate-stage,
   .event-panel {
     grid-template-columns: 1fr;
   }
 
   .region-map,
+  .map-column,
   .focus-panel,
   .setup-copy {
     position: static;
@@ -1023,10 +1272,12 @@
 
   .civic-setup,
   .setup-form .form-grid,
+  .setup-command-board,
   .issue-card,
   .actions-header,
   .action-filter,
   .civic-tutorial-panel,
+  .debate-dais,
   .result-totals,
   .bar-pair,
   .law-meta {
