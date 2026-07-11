@@ -3,10 +3,14 @@
   const root = document.querySelector("#civicRoot");
   if (!root) return;
 
-  const VERSION = "0.5.0";
+  const VERSION = "0.5.1";
+  const SAVE_SCHEMA_VERSION = 3;
   const SAVE_KEY = "commonRepublicScenarioSpineSaveV2";
+  const SAVE_SLOTS_KEY = "commonRepublicSaveSlotsV3";
+  const LEGACY_SAVE_KEYS = ["commonRepublicScenarioSpineSaveV2", "commonRepublicCareerSaveV1", "commonRepublicGrandStrategySaveV1"];
   const CUSTOM_SCENARIO_KEY = "commonRepublicCustomScenariosV1";
   const DEFAULT_SCENARIO_ID = "schoolBoardDistrict";
+  const IS_MOD_MODE = new URLSearchParams(window.location.search).get("mod") === "1";
 
   const RAW_PARTIES = DATA.parties || [];
   const PARTIES = RAW_PARTIES.length ? RAW_PARTIES.map((party) => ({
@@ -80,6 +84,11 @@
   };
 
   const LOCAL_ISSUES = ["education", "taxes", "publicSafety", "housing", "labor", "government", "ruralDevelopment"];
+  const SUPPORTED_CAMPAIGN_EFFECT_KEYS = new Set([
+    "money", "volunteers", "staff", "capital", "trust", "media", "energy", "time", "debate",
+    "regionSupport", "regionTurnout", "regionTurnoutAll", "groupSupport", "groupTurnout",
+    "groups", "groupEffects", "regions", "opponentSupport", "issueMomentum"
+  ]);
   const STANCE_SCALE = 0.68;
   const PARTY_SCALE = 0.45;
   const BACKGROUND_SCALE = 0.72;
@@ -123,14 +132,9 @@
 
   const CAMPAIGN_TABS = [
     ["warRoom", "War Room"],
-    ["event", "Weekly Question"],
-    ["actions", "Actions"],
-    ["messages", "Messages"],
-    ["voters", "Voters & Polls"],
-    ["endorsements", "Endorsements"],
-    ["focus", "Agenda Path"],
-    ["debate", "Debate Hall"],
-    ["math", "Election Math"],
+    ["schedule", "Schedule"],
+    ["platform", "Platform"],
+    ["coalition", "Coalition"],
     ["file", "Candidate File"]
   ];
 
@@ -246,26 +250,143 @@
     return (DATA.issues || []).filter((issue) => LOCAL_ISSUES.includes(issue.id));
   }
 
-  function save() {
+  function announce(text) {
+    const target = document.querySelector("#civicAnnouncements");
+    if (target) target.textContent = text;
+  }
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function getSaveSlots() {
     try {
-      if (state) localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, savedAt: new Date().toISOString() }));
-    } catch (error) {
-      console.warn("Could not save The Common Republic", error);
+      const parsed = JSON.parse(localStorage.getItem(SAVE_SLOTS_KEY) || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
     }
   }
 
-  function load() {
+  function writeSaveSlots(slots) {
+    localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  }
+
+  function save(slotId = "autosave") {
     try {
-      const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
-      if (!parsed || parsed.version !== VERSION) return null;
-      return parsed;
+      if (!state) return;
+      normalizeState(state);
+      const savedAt = new Date().toISOString();
+      const slots = getSaveSlots();
+      const data = clone({ ...state, version: VERSION, gameVersion: VERSION, saveSchemaVersion: SAVE_SCHEMA_VERSION, savedAt });
+      delete data.confirmNewCareer;
+      delete data.confirmExportJson;
+      slots[slotId] = {
+        id: slotId,
+        label: slotId === "autosave" ? "Autosave" : slotId === "manual1" ? "Manual Save 1" : "Manual Save 2",
+        savedAt,
+        meta: saveMeta(data),
+        data
+      };
+      writeSaveSlots(slots);
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      announce(`${slots[slotId].label} saved.`);
+    } catch (error) {
+      console.warn("Could not save The Common Republic", error);
+      announce("Could not save The Common Republic.");
+    }
+  }
+
+  function saveMeta(data) {
+    return {
+      candidate: data?.candidate?.name || "Unnamed candidate",
+      phase: data?.phase || "setup",
+      office: data?.candidate?.officeName || data?.campaign?.officeId || "unknown office",
+      scenario: data?.campaign?.scenarioName || data?.scenarioId || "unknown scenario",
+      week: data?.campaign?.week,
+      month: data?.governing?.month
+    };
+  }
+
+  function load(slotId = "autosave") {
+    try {
+      const slots = getSaveSlots();
+      const slotted = slots[slotId]?.data || Object.values(slots)[0]?.data;
+      if (slotted) return migrateSave(slotted);
+      for (const key of LEGACY_SAVE_KEYS) {
+        const parsed = JSON.parse(localStorage.getItem(key) || "null");
+        if (parsed) return migrateSave(parsed);
+      }
+      return null;
     } catch {
       return null;
     }
   }
 
-  function clearSave() {
-    localStorage.removeItem(SAVE_KEY);
+  function clearSave(slotId = null) {
+    if (!slotId) {
+      localStorage.removeItem(SAVE_SLOTS_KEY);
+      localStorage.removeItem(SAVE_KEY);
+      return;
+    }
+    const slots = getSaveSlots();
+    delete slots[slotId];
+    writeSaveSlots(slots);
+  }
+
+  function migrateSave(raw) {
+    const migrated = clone(raw);
+    migrated.version = VERSION;
+    migrated.gameVersion = VERSION;
+    migrated.saveSchemaVersion = SAVE_SCHEMA_VERSION;
+    migrated.view = migrated.view || "warRoom";
+    migrated.govView = migrated.govView || "desk";
+    if (migrated.campaign) migrateCampaign(migrated.campaign);
+    if (migrated.governing) migrateGoverning(migrated.governing);
+    return normalizeState(migrated);
+  }
+
+  function migrateCampaign(campaign) {
+    const resources = campaign.resources || {};
+    resources.maxEnergy = Number(resources.maxEnergy || 6);
+    resources.energy = clamp(Number(resources.energy ?? resources.maxEnergy), 0, resources.maxEnergy);
+    campaign.resources = resources;
+    campaign.debate = {
+      prep: Number(campaign.debate?.prep ?? resources.debate ?? 40),
+      scheduledWeek: Number(campaign.debate?.scheduledWeek || Math.min(4, campaign.maxWeeks || 6)),
+      started: Boolean(campaign.debate?.started),
+      completed: Boolean(campaign.debate?.completed),
+      declined: Boolean(campaign.debate?.declined),
+      currentIndex: Number(campaign.debate?.currentIndex || 0),
+      baselinePoll: campaign.debate?.baselinePoll ?? null,
+      baselineTrust: campaign.debate?.baselineTrust ?? null,
+      score: Number(campaign.debate?.score || 0),
+      opponentScore: Number(campaign.debate?.opponentScore || 0),
+      answers: Array.isArray(campaign.debate?.answers) ? campaign.debate.answers : [],
+      clip: campaign.debate?.clip || null,
+      report: campaign.debate?.report || null
+    };
+    campaign.polling = campaign.polling || { measurementError: difficulty(campaign.difficultyId).pollError || 3.6, lastPollWeek: null, pollsBought: 0 };
+    campaign.issueMomentum = campaign.issueMomentum || {};
+    campaign.weekStep = campaign.weekStep || "briefing";
+    campaign.weekReport = campaign.weekReport || [];
+    campaign.schedule = campaign.schedule || { candidate: null, staff: null, volunteers: null, media: null, resolved: false, report: [] };
+    (campaign.regions || []).forEach((region) => {
+      region.measurementError = Number(region.measurementError || region.pollMoe || campaign.polling.measurementError || 4.2);
+      region.electionVolatility = Number(region.electionVolatility || Math.max(2.2, region.measurementError * 0.75));
+      region.turnoutError = Number(region.turnoutError || 1.8);
+      region.lateMovement = Number(region.lateMovement || 0);
+    });
+  }
+
+  function migrateGoverning(governing) {
+    governing.monthlyActions = governing.monthlyActions || { administration: false, outreach: false };
+    governing.staff = governing.staff || {};
+    governing.staffModifiers = calculateStaffModifiers(governing);
+    governing.fiscal = governing.fiscal || makeFiscalModel(governing.budget || 80, governing.budgetLines);
+    governing.budgetLines = governing.fiscal.allocations;
+    (governing.bills || []).forEach((bill) => normalizeBill(bill, governing.month || 1));
+    recalculateFiscal(governing);
   }
 
   function loadCustomScenarios() {
@@ -312,7 +433,8 @@
   }
 
   function renderScenarioSelect() {
-    const saved = load();
+    const slots = getSaveSlots();
+    const hasSaves = Object.keys(slots).length > 0 || load();
     const scenarios = allScenarios();
     root.innerHTML = `
       <section class="cr-setup cr-spine">
@@ -325,29 +447,33 @@
             <div><span>Civic Engine</span><strong>Voter groups and policies</strong></div>
             <div><span>Career</span><strong>Office, governing, reelection</strong></div>
           </div>
-          ${saved ? `
+          ${hasSaves ? `
             <div class="cr-note">
-              <strong>Saved career found</strong>
-              <p>${html(saved.candidate?.name)} is in ${html(saved.phase)} mode. This save uses the new scenario-first game spine.</p>
-              <button class="cr-btn primary" data-resume-save type="button">Resume Career</button>
+              <strong>Saved careers</strong>
+              <p>Autosave and manual slots migrate forward when the game changes. Export a save before replacing files if you want a backup.</p>
+              <div class="cr-save-slots">${renderSaveSlots(slots)}</div>
             </div>
           ` : ""}
-          <div class="cr-note">
+          ${IS_MOD_MODE ? `<div class="cr-note">
             <strong>Scenario data loader</strong>
             <p>Add scenarios by appending objects to <code>games/civic/data/scenarios.js</code>, or paste one JSON object here for local testing.</p>
             <textarea class="cr-scenario-json" id="customScenarioJson" placeholder='{"id":"cityCouncilPilot","name":"City Council Pilot","office":"City Council","officeId":"cityCouncil","weeks":6,"regionIds":["harborCity","pineSuburbs"],"startingResources":{"money":32000,"time":3,"staff":2,"volunteers":32,"capital":4,"trust":50,"media":8,"energy":6,"maxEnergy":6,"debate":40},"defaultOpponent":"miraVance"}'></textarea>
             <button class="cr-btn subtle" data-load-custom-scenario type="button">Load Local Scenario</button>
-          </div>
+          </div>` : `<a class="cr-btn subtle" href="civic-engine.html?mod=1">Open Mod Tools</a>`}
         </div>
         <div class="cr-scenario-stack">
           ${scenarios.map((scenario) => renderScenarioCard(scenario)).join("")}
         </div>
       </section>
     `;
-    document.querySelector("[data-resume-save]")?.addEventListener("click", () => {
-      state = load();
+    document.querySelectorAll("[data-resume-slot]").forEach((button) => button.addEventListener("click", () => {
+      state = load(button.dataset.resumeSlot);
       render();
-    });
+    }));
+    document.querySelectorAll("[data-export-slot]").forEach((button) => button.addEventListener("click", () => {
+      exportSaveSlot(button.dataset.exportSlot);
+    }));
+    document.querySelector("[data-import-save]")?.addEventListener("click", importSaveFromTextarea);
     document.querySelectorAll("[data-select-scenario]").forEach((button) => {
       button.addEventListener("click", () => {
         setup.scenarioId = button.dataset.selectScenario;
@@ -369,6 +495,50 @@
         textarea.value = `Could not load scenario: ${error.message}`;
       }
     });
+  }
+
+  function renderSaveSlots(slots) {
+    const allSlots = { ...slots };
+    if (!Object.keys(allSlots).length) {
+      const legacy = load();
+      if (legacy) allSlots.autosave = { id: "autosave", label: "Autosave", savedAt: legacy.savedAt, meta: saveMeta(legacy), data: legacy };
+    }
+    return `
+      ${["autosave", "manual1", "manual2"].map((slotId) => {
+        const slot = allSlots[slotId];
+        if (!slot) return `<div class="cr-save-slot empty"><strong>${slotId === "autosave" ? "Autosave" : slotId === "manual1" ? "Manual Save 1" : "Manual Save 2"}</strong><span>Empty</span></div>`;
+        return `<div class="cr-save-slot"><strong>${html(slot.label || slotId)}</strong><span>${html(slot.meta?.candidate || "Saved career")} · ${html(slot.meta?.office || "office")} · ${html(slot.meta?.phase || "phase")}</span><em>${new Date(slot.savedAt || Date.now()).toLocaleString()}</em><button class="cr-btn primary" data-resume-slot="${html(slotId)}" type="button">Resume</button><button class="cr-btn subtle" data-export-slot="${html(slotId)}" type="button">Export</button></div>`;
+      }).join("")}
+      <textarea class="cr-save-import" id="saveImportJson" placeholder="Paste exported save JSON here"></textarea>
+      <button class="cr-btn subtle" data-import-save type="button">Import Save JSON</button>
+    `;
+  }
+
+  function exportSaveSlot(slotId = "autosave") {
+    const slots = getSaveSlots();
+    const data = slots[slotId]?.data || load(slotId);
+    if (!data) return;
+    const textarea = document.querySelector("#saveImportJson");
+    if (textarea) {
+      textarea.value = JSON.stringify(data, null, 2);
+      textarea.focus();
+      textarea.select();
+      announce("Save JSON is ready to copy.");
+    }
+  }
+
+  function importSaveFromTextarea() {
+    const textarea = document.querySelector("#saveImportJson");
+    try {
+      const parsed = JSON.parse(textarea?.value || "{}");
+      state = migrateSave(parsed);
+      save("manual1");
+      announce("Imported save into Manual Save 1.");
+      render();
+    } catch (error) {
+      announce("Could not import that save JSON.");
+      if (textarea) textarea.value = `Could not import save: ${error.message}`;
+    }
   }
 
   function renderScenarioCard(scenario) {
@@ -395,9 +565,11 @@
   function renderCandidateSetup() {
     const scenario = getScenario(setup.scenarioId);
     const issues = visibleIssues(scenario);
-    const states = DATA.usStates || [];
+    const fixedState = byId(DATA.usStates || [], scenario.stateId || "pa") || { id: scenario.stateId || "pa", name: "Scenario state" };
     const backgrounds = DATA.backgrounds || [];
     const educationLevels = DATA.educationLevels || [];
+    const traits = DATA.traits || [];
+    const regions = scenarioRegionList(scenario);
     const selectedParty = PARTIES[0];
     root.innerHTML = `
       <section class="cr-setup">
@@ -413,16 +585,22 @@
         </div>
         <form id="crCandidateForm" class="cr-setup-form cr-candidate-form">
           <input type="hidden" name="scenarioId" value="${html(scenario.id)}">
+          <input type="hidden" name="homeState" value="${html(fixedState.id)}">
           <label><span>Candidate name</span><input name="candidateName" value="Alex Rivers" maxlength="48" required></label>
           <label><span>Age</span><input name="age" type="number" min="18" max="90" value="35"></label>
-          <label><span>Home state</span><select name="homeState">${states.map((item) => `<option value="${html(item.id)}" ${item.id === (scenario.stateId || "pa") ? "selected" : ""}>${html(item.name)}</option>`).join("")}</select></label>
+          <label><span>Scenario state</span><input value="${html(fixedState.name)}" disabled><em>Fixed by scenario.</em></label>
+          <label><span>Home region</span><select name="homeRegion">${regions.map((item) => `<option value="${html(item.id)}">${html(item.name)}</option>`).join("")}</select></label>
           <label><span>Office</span><input value="${html(scenario.office || officeById(scenario.officeId)?.name)}" disabled></label>
           <label><span>Background</span><select name="background">${backgrounds.map((item) => `<option value="${html(item.id)}">${html(item.name)}</option>`).join("")}</select></label>
           <label><span>Education</span><select name="education">${educationLevels.map((item) => `<option value="${html(item.id)}">${html(item.name)}</option>`).join("")}</select></label>
           <label><span>Political identity</span><select name="party">${PARTIES.map((item) => `<option value="${html(item.id)}">${html(item.name)}</option>`).join("")}</select><em>${html(electionStructureLabel(scenario.electionStructure))}</em></label>
           <label><span>Difficulty</span><select name="difficulty">${Object.entries(DIFFICULTIES).map(([id, item]) => `<option value="${id}" ${id === "intermediate" ? "selected" : ""}>${html(item.name)}</option>`).join("")}</select></label>
+          <label><span>Candidate trait</span><select name="trait">${traits.map((item) => `<option value="${html(item.id)}">${html(item.name)}</option>`).join("")}</select></label>
           <label class="wide"><span>Ideology</span><input name="ideology" type="range" min="-35" max="35" value="-4"><em>Left/progressive to right/conservative. Scenario, voters, and stances matter more than this one slider.</em></label>
           ${[0, 1, 2].map((index) => renderPriorityRow(index, issues)).join("")}
+          <label class="wide"><span>Why are you running?</span><textarea name="motivation" maxlength="220">I want local government to feel legible, honest, and useful to ordinary families.</textarea></label>
+          <label><span>Public strength</span><input name="strength" value="Clear explanations"></label>
+          <label><span>Campaign flaw</span><input name="flaw" value="Sometimes too cautious"></label>
           <div class="cr-note wide" id="candidateReadout">
             <strong>${html(selectedParty.short)} identity</strong>
             <p>${html(selectedParty.description || "Your identity shapes initial coalition assumptions, but local trust can override party labels.")}</p>
@@ -456,8 +634,10 @@
       const readout = document.querySelector("#candidateReadout");
       const currentParty = party(form?.party?.value);
       const diff = difficulty(form?.difficulty?.value);
+      const trait = byId(DATA.traits || [], form?.trait?.value);
+      const homeRegion = byId(scenarioRegionList(getScenario(form?.scenarioId?.value)), form?.homeRegion?.value);
       if (!readout) return;
-      readout.innerHTML = `<strong>${html(currentParty.name)} · ${html(diff.name)}</strong><p>${html(currentParty.description || "Local trust and issue fit can overcome party assumptions.")} ${html(diff.text)}</p>`;
+      readout.innerHTML = `<strong>${html(currentParty.name)} · ${html(diff.name)}</strong><p>${html(currentParty.description || "Local trust and issue fit can overcome party assumptions.")} ${html(diff.text)}</p><p><strong>${html(trait?.name || "Trait")}:</strong> ${html(trait?.description || "No trait selected.")}</p><p><strong>Home base:</strong> ${html(homeRegion?.name || "selected region")} gives extra familiarity but also raises expectations there.</p>`;
     };
     const updateStance = (index) => {
       const issueSelect = form?.querySelector(`[data-priority-issue="${index}"]`);
@@ -466,12 +646,29 @@
       if (!stanceSelect || !issue) return;
       stanceSelect.innerHTML = (issue.stances || []).map((stance) => `<option value="${html(stance.id)}">${html(stance.name)}</option>`).join("");
     };
+    const updatePriorityOptions = () => {
+      const selected = [0, 1, 2].map((index) => form?.querySelector(`[data-priority-issue="${index}"]`)?.value);
+      [0, 1, 2].forEach((index) => {
+        const select = form?.querySelector(`[data-priority-issue="${index}"]`);
+        if (!select) return;
+        [...select.options].forEach((option) => {
+          option.disabled = option.value !== select.value && selected.includes(option.value);
+        });
+      });
+    };
     [0, 1, 2].forEach(updateStance);
+    updatePriorityOptions();
     form?.querySelectorAll("[data-priority-issue]").forEach((select) => {
-      select.addEventListener("change", () => updateStance(select.dataset.priorityIssue));
+      select.addEventListener("change", () => {
+        updatePriorityOptions();
+        updateStance(select.dataset.priorityIssue);
+        updateReadout();
+      });
     });
     form?.party?.addEventListener("change", updateReadout);
     form?.difficulty?.addEventListener("change", updateReadout);
+    form?.trait?.addEventListener("change", updateReadout);
+    form?.homeRegion?.addEventListener("change", updateReadout);
     form?.addEventListener("submit", (event) => {
       event.preventDefault();
       createNewCareer(new FormData(form));
@@ -491,6 +688,7 @@
   function makeCandidate(form, scenario) {
     const background = byId(DATA.backgrounds || [], form.get("background")) || DATA.backgrounds?.[0] || { id: "teacher", name: "Teacher", skills: {} };
     const education = byId(DATA.educationLevels || [], form.get("education")) || DATA.educationLevels?.[0] || { id: "bachelors", name: "Bachelor's Degree", skills: {} };
+    const trait = byId(DATA.traits || [], form.get("trait")) || DATA.traits?.[0] || { id: "coalitionBuilder", name: "Coalition Builder", modifiers: {} };
     const stats = {
       eloquence: 54,
       policy: 52,
@@ -512,16 +710,23 @@
       name: String(form.get("candidateName") || "Alex Rivers").trim(),
       age: clamp(Number(form.get("age") || 35), 18, 90),
       homeStateId: form.get("homeState") || scenario.stateId || "pa",
+      homeRegionId: form.get("homeRegion") || scenarioRegionList(scenario)[0]?.id,
       partyId: form.get("party") || "democratic",
       backgroundId: background.id,
       educationId: education.id,
+      traitId: trait.id,
       officeId: scenario.officeId,
       officeName: scenario.office || officeById(scenario.officeId)?.name,
       ideology: Number(form.get("ideology") || 0),
       priorities: collectPriorities(form),
+      biography: {
+        motivation: String(form.get("motivation") || "").trim(),
+        strength: String(form.get("strength") || "").trim(),
+        flaw: String(form.get("flaw") || "").trim()
+      },
       stats,
       fatigue: 0,
-      traits: [background.name, education.name],
+      traits: [background.name, education.name, trait.name],
       protege: { name: "No protege selected", age: 27, eloquence: 42, policy: 42, coalition: 38, network: 10, ready: false }
     };
   }
@@ -580,7 +785,10 @@
       turnoutBoost: 0,
       ground: 0,
       adSaturation: 0,
-      pollMoe: scope === "localDistrict" ? 4.8 : 5.8,
+      measurementError: scope === "localDistrict" ? diff.pollError : diff.pollError + 0.8,
+      electionVolatility: scope === "localDistrict" ? 2.7 * diff.risk : 3.6 * diff.risk,
+      turnoutError: 1.7 * diff.risk,
+      lateMovement: 0,
       groups: { ...(region.groups || {}) },
       concerns: region.concerns || [],
       industries: region.industries || [],
@@ -616,12 +824,18 @@
       rival: { lastMove: null },
       endorsements: {},
       focus: { activeId: null, stepIndex: 0, completed: [], awaitingChoice: null },
-      debate: { prep: resources.debate || 40, started: false, completed: false, currentIndex: 0, answers: [], clip: null },
+      debate: { prep: resources.debate || 40, scheduledWeek: scenario.debateWeek || Math.min(4, scenario.weeks || 6), started: false, completed: false, declined: false, currentIndex: 0, baselinePoll: null, baselineTrust: null, score: 0, opponentScore: 0, answers: [], clip: null, report: null },
+      polling: { measurementError: diff.pollError, lastPollWeek: null, pollsBought: 0, publicPolls: [] },
+      issueMomentum: {},
+      weekStep: "briefing",
+      weekReport: [],
+      schedule: { candidate: null, staff: null, volunteers: null, media: null, resolved: false, report: [] },
       policyMemory: [],
       messageHistory: [],
       internalNotes: []
     };
     applyCandidateSources(campaign, candidate);
+    applyTraitSources(campaign, candidate);
     refreshAllRegionPolls(campaign);
     campaign.actors = buildActors(campaign, scenario);
     campaign.currentEventId = drawEligibleEvent(campaign);
@@ -636,6 +850,24 @@
       ]
     };
     return campaign;
+  }
+
+  function applyTraitSources(campaign, candidate) {
+    const trait = byId(DATA.traits || [], candidate.traitId);
+    if (!trait) return;
+    applyEffectsToCampaign(campaign, trait.modifiers || {}, { source: trait.name, quiet: true });
+    Object.entries(trait.groupModifiers || {}).forEach(([groupId, amount]) => {
+      const group = campaign.groups[groupId];
+      if (group) group.support = clamp(group.support + Number(amount), 4, 96);
+    });
+    Object.entries(trait.groupTurnoutModifiers || {}).forEach(([groupId, amount]) => {
+      const group = campaign.groups[groupId];
+      if (group) group.turnout = clamp(group.turnout + Number(amount), 10, 95);
+    });
+    if (trait.homeRegionBonus && candidate.homeRegionId) {
+      const region = campaign.regions.find((item) => item.id === candidate.homeRegionId);
+      if (region) region.directSupport = clamp(region.directSupport + Number(trait.homeRegionBonus), -30, 30);
+    }
   }
 
   function normalizeResources(source) {
@@ -788,8 +1020,8 @@
   }
 
   function pollMoe(campaign = state.campaign) {
-    const base = campaign.regions.reduce((sum, region) => sum + (region.pollMoe || 4.5), 0) / Math.max(1, campaign.regions.length);
-    return clamp(base * (campaign.lastPoll ? 0.62 : 1), 1.8, 7.5);
+    const base = campaign.regions.reduce((sum, region) => sum + (region.measurementError || campaign.polling?.measurementError || 4.5), 0) / Math.max(1, campaign.regions.length);
+    return clamp(base, 1.6, 8.5);
   }
 
   function applyEffectsToCampaign(campaign, effects = {}, context = {}) {
@@ -799,10 +1031,26 @@
     const group = campaign.groups[context.groupId || campaign.selectedGroupId];
     const addItem = (text) => { if (!context.quiet) items.push(text); };
 
+    Object.keys(effects || {}).forEach((key) => {
+      if (!SUPPORTED_CAMPAIGN_EFFECT_KEYS.has(key)) {
+        console.error(`Unknown Common Republic campaign effect key: ${key}`, effects);
+        addItem(`Unknown effect key "${key}" was ignored. Check the content data.`);
+      }
+    });
+
     const resourceLabels = { money: "Money", volunteers: "Volunteers", staff: "Staff", capital: "Political capital", trust: "Public trust", media: "Media attention", energy: "Energy", time: "Time", debate: "Debate prep" };
     Object.entries(resourceLabels).forEach(([key, label]) => {
       if (typeof effects[key] !== "number") return;
-      campaign.resources[key] = clamp((campaign.resources[key] || 0) + effects[key], key === "money" ? -999999 : 0, key === "trust" || key === "media" || key === "debate" ? 100 : 999999);
+      if (key === "debate") {
+        const beforePrep = campaign.debate?.prep ?? campaign.resources.debate ?? 40;
+        campaign.debate = campaign.debate || {};
+        campaign.debate.prep = clamp(beforePrep + effects[key], 0, 100);
+        campaign.resources.debate = campaign.debate.prep;
+        addItem(`${label} ${Math.round(beforePrep)} to ${Math.round(campaign.debate.prep)}.`);
+        return;
+      }
+      const max = key === "energy" ? campaign.resources.maxEnergy || 6 : key === "trust" || key === "media" ? 100 : 999999;
+      campaign.resources[key] = clamp((campaign.resources[key] || 0) + effects[key], key === "money" ? -999999 : 0, max);
       addItem(`${label} ${signed(effects[key])}.`);
     });
 
@@ -814,6 +1062,13 @@
       region.turnoutBoost = clamp(region.turnoutBoost + effects.regionTurnout, -20, 30);
       region.ground = clamp(region.ground + Math.max(0, effects.regionTurnout), 0, 100);
       addItem(`${region.name} turnout ${signed(effects.regionTurnout, " pts")}.`);
+    }
+    if (typeof effects.regionTurnoutAll === "number") {
+      campaign.regions.forEach((item) => {
+        item.turnoutBoost = clamp(item.turnoutBoost + effects.regionTurnoutAll, -20, 30);
+        item.ground = clamp(item.ground + Math.max(0, effects.regionTurnoutAll), 0, 100);
+      });
+      addItem(`All-region turnout ${signed(effects.regionTurnoutAll, " pts")}.`);
     }
     if (typeof effects.groupSupport === "number" && group) {
       group.support = clamp(group.support + effects.groupSupport * (group.persuasion || 1), 4, 96);
@@ -853,7 +1108,18 @@
       campaign.regions.forEach((item) => item.directSupport = clamp(item.directSupport + playerDelta, -30, 30));
       addItem(`Opponent standing ${signed(effects.opponentSupport, " pts")}; your district poll reacts ${signed(playerDelta, " pts")}.`);
     }
+    if (typeof effects.issueMomentum === "number") {
+      const issueId = state.candidate?.priorities?.[0]?.issueId || "general";
+      campaign.issueMomentum[issueId] = clamp((campaign.issueMomentum[issueId] || 0) + effects.issueMomentum, -20, 20);
+      addItem(`${issueById(issueId)?.name || "General issue"} momentum ${signed(effects.issueMomentum, " pts")}.`);
+    } else {
+      Object.entries(effects.issueMomentum || {}).forEach(([issueId, amount]) => {
+        campaign.issueMomentum[issueId] = clamp((campaign.issueMomentum[issueId] || 0) + Number(amount), -20, 20);
+        addItem(`${issueById(issueId)?.name || labelize(issueId)} momentum ${signed(amount, " pts")}.`);
+      });
+    }
 
+    normalizeCampaign(campaign);
     refreshAllRegionPolls(campaign);
     const after = districtPoll(campaign);
     if (!context.quiet) {
@@ -867,6 +1133,52 @@
       };
     }
     return { before, after, items };
+  }
+
+  function normalizeState(target = state) {
+    if (!target) return target;
+    if (!CAMPAIGN_TABS.some(([id]) => id === target.view)) target.view = "warRoom";
+    if (!GOVERNING_TABS.some(([id]) => id === target.govView)) target.govView = "desk";
+    if (target.campaign) normalizeCampaign(target.campaign);
+    if (target.governing) normalizeGoverning(target.governing);
+    return target;
+  }
+
+  function normalizeCampaign(campaign) {
+    if (!campaign) return campaign;
+    campaign.resources = campaign.resources || normalizeResources({});
+    campaign.resources.maxEnergy = clamp(campaign.resources.maxEnergy || 6, 1, 12);
+    campaign.resources.energy = clamp(campaign.resources.energy || 0, 0, campaign.resources.maxEnergy);
+    campaign.resources.trust = clamp(campaign.resources.trust || 0, 0, 100);
+    campaign.resources.media = clamp(campaign.resources.media || 0, 0, 100);
+    campaign.debate = campaign.debate || {};
+    campaign.debate.prep = clamp(campaign.debate.prep ?? campaign.resources.debate ?? 40, 0, 100);
+    campaign.resources.debate = campaign.debate.prep;
+    Object.values(campaign.groups || {}).forEach((group) => {
+      group.support = clamp(group.support, 4, 96);
+      group.turnout = clamp(group.turnout, 10, 95);
+      group.salience = clamp(group.salience ?? 50, 0, 100);
+    });
+    (campaign.regions || []).forEach((region) => {
+      region.directSupport = clamp(region.directSupport || 0, -30, 30);
+      region.turnoutBoost = clamp(region.turnoutBoost || 0, -20, 30);
+      region.ground = clamp(region.ground || 0, 0, 100);
+      region.measurementError = clamp(region.measurementError || 4.5, 1.5, 9);
+      region.electionVolatility = clamp(region.electionVolatility || 3, 0.5, 9);
+      region.turnoutError = clamp(region.turnoutError || 1.5, 0, 7);
+    });
+    return campaign;
+  }
+
+  function normalizeGoverning(governing) {
+    if (!governing) return governing;
+    governing.approval = clamp(governing.approval || 0, 0, 100);
+    governing.trust = clamp(governing.trust || 0, 0, 100);
+    governing.capital = Math.max(0, Math.round(governing.capital || 0));
+    Object.values(governing.metrics || {}).forEach((_value, _index) => {});
+    Object.keys(governing.metrics || {}).forEach((key) => governing.metrics[key] = clamp(governing.metrics[key], 0, 100));
+    recalculateFiscal(governing);
+    return governing;
   }
 
   function renderCampaignBriefing() {
@@ -923,15 +1235,36 @@
       <header class="cr-ribbon">
         <a class="cr-ribbon-brand" href="index.html#games">Common Pages Games</a>
         <nav>
-          <button type="button" class="${state?.phase === "campaign" || state?.phase === "briefing" ? "active" : ""}" data-phase-jump="campaign" ${state?.campaign ? "" : "disabled"}>Campaign</button>
-          <button type="button" class="${state?.phase === "governing" ? "active" : ""}" data-phase-jump="governing" ${state?.governing ? "" : "disabled"}>Governing</button>
+          <button type="button" class="${state?.phase === "campaign" || state?.phase === "briefing" ? "active" : ""}" disabled>Campaign</button>
+          <button type="button" class="${state?.phase === "governing" ? "active" : ""}" disabled>Governing</button>
           <button type="button" data-career-tab>Career</button>
         </nav>
         <div class="cr-ribbon-actions">
           <button class="cr-btn subtle" data-save type="button">Save</button>
+          <button class="cr-btn subtle" data-save-slot="manual1" type="button">Manual 1</button>
+          <button class="cr-btn subtle" data-save-slot="manual2" type="button">Manual 2</button>
           <button class="cr-btn subtle" data-new-career type="button">New Career</button>
         </div>
       </header>
+      ${renderNewCareerModal()}
+    `;
+  }
+
+  function renderNewCareerModal() {
+    if (!state?.confirmNewCareer) return "";
+    return `
+      <div class="cr-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="newCareerTitle">
+        <div class="cr-modal">
+          <h2 id="newCareerTitle">Start a new career?</h2>
+          <p>This will leave the current career screen. Export first if you want a JSON backup.</p>
+          ${state.confirmExportJson ? `<textarea class="cr-save-import" readonly>${html(JSON.stringify({ ...state, confirmNewCareer: false, confirmExportJson: false }, null, 2))}</textarea>` : ""}
+          <div class="cr-action-stack inline">
+            <button class="cr-btn primary" data-confirm-new-career="start" type="button">Start New Career</button>
+            <button class="cr-btn subtle" data-confirm-new-career="export" type="button">Export Current Save</button>
+            <button class="cr-btn subtle" data-confirm-new-career="cancel" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -952,23 +1285,29 @@
       addLog("Career saved locally.", "system");
       render();
     });
+    document.querySelectorAll("[data-save-slot]").forEach((button) => button.addEventListener("click", () => {
+      save(button.dataset.saveSlot);
+      addLog(`Career saved to ${button.dataset.saveSlot}.`, "system");
+      render();
+    }));
     document.querySelector("[data-new-career]")?.addEventListener("click", () => {
-      clearSave();
-      state = null;
-      setup = { screen: "scenario", scenarioId: DEFAULT_SCENARIO_ID, customScenarios: loadCustomScenarios() };
+      state.confirmNewCareer = true;
       render();
     });
-    document.querySelector("[data-phase-jump='campaign']")?.addEventListener("click", () => {
-      if (!state?.campaign) return;
-      state.phase = "campaign";
-      state.view = state.view || "warRoom";
+    document.querySelectorAll("[data-confirm-new-career]").forEach((button) => button.addEventListener("click", () => {
+      const action = button.dataset.confirmNewCareer;
+      if (action === "start") {
+        clearSave();
+        state = null;
+        setup = { screen: "scenario", scenarioId: DEFAULT_SCENARIO_ID, customScenarios: loadCustomScenarios() };
+      } else if (action === "export") {
+        state.confirmExportJson = true;
+      } else {
+        state.confirmNewCareer = false;
+        state.confirmExportJson = false;
+      }
       render();
-    });
-    document.querySelector("[data-phase-jump='governing']")?.addEventListener("click", () => {
-      if (!state?.governing) return;
-      state.phase = "governing";
-      render();
-    });
+    }));
     document.querySelector("[data-career-tab]")?.addEventListener("click", () => {
       if (state.phase === "governing") state.govView = "career";
       if (state.phase === "campaign") state.view = "file";
@@ -1001,7 +1340,6 @@
   }
 
   function campaignTabs(campaign) {
-    if (campaign.mapScope === "national") return [...CAMPAIGN_TABS.slice(0, 4), ["primary", "Primary/Convention"], ...CAMPAIGN_TABS.slice(4)];
     return CAMPAIGN_TABS;
   }
 
@@ -1026,20 +1364,56 @@
   }
 
   function renderCampaignTab() {
-    if (state.view === "event") return renderWeeklyQuestion();
-    if (state.view === "actions") return renderActionBoard();
-    if (state.view === "messages") return renderMessageBoard();
-    if (state.view === "voters") return renderVoterBoard();
-    if (state.view === "endorsements") return renderEndorsements();
-    if (state.view === "focus") return renderFocusPaths();
-    if (state.view === "debate") return renderDebateHall();
-    if (state.view === "math") return renderElectionMath();
-    if (state.view === "primary") return renderPrimaryPlaceholder();
+    if (state.view === "schedule") return renderScheduleTab();
+    if (state.view === "platform") return renderPlatformTab();
+    if (state.view === "coalition") return renderCoalitionTab();
     if (state.view === "file") return renderCandidateFile();
     return renderWarRoom();
   }
 
+  function renderScheduleTab() {
+    return `
+      <section class="cr-grid two cr-schedule-tab">
+        <div class="cr-stack">
+          ${renderWeeklyQuestion()}
+          ${renderDebateHall()}
+        </div>
+        <div class="cr-stack">
+          ${renderActionBoard()}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPlatformTab() {
+    return `
+      <section class="cr-grid two">
+        <div class="cr-stack">
+          ${renderMessageBoard()}
+        </div>
+        <div class="cr-stack">
+          ${renderFocusPaths()}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCoalitionTab() {
+    return `
+      <section class="cr-grid two">
+        <div class="cr-stack">
+          ${renderVoterBoard()}
+        </div>
+        <div class="cr-stack">
+          ${renderEndorsements()}
+          ${state.campaign.mapScope === "national" ? renderPrimaryPlaceholder() : ""}
+        </div>
+      </section>
+    `;
+  }
+
   function renderWarRoom() {
+    const advance = canAdvanceWeek();
     return `
       <section class="cr-war-room cr-scenario-war-room">
         <div class="cr-map-panel">
@@ -1058,7 +1432,8 @@
           <p>Choose actions, answer the weekly question, watch the rival turn, then advance the week. Every movement is shown in the poll explanation.</p>
           ${renderWhyMoved()}
           ${renderRivalMove()}
-          <button class="cr-btn primary full" data-advance-week type="button">${state.campaign.week >= state.campaign.maxWeeks ? "Election Night" : "Advance Week"}</button>
+          <button class="cr-btn primary full" data-advance-week ${advance.ok ? "" : "disabled"} type="button">${state.campaign.week >= state.campaign.maxWeeks ? "Election Night" : "Advance Week"}</button>
+          ${advance.ok ? "" : `<p class="cr-disabled-reason">${html(advance.reason)}</p>`}
         </aside>
       </section>
     `;
@@ -1132,7 +1507,7 @@
     return `
       <div class="cr-map-detail">
         <h3>${html(region.name)}</h3>
-        <p>${html(region.type)} · ${region.population.toLocaleString()} people · poll ${pct(region.support, 1)} · turnout ${pct(effectiveTurnout(region), 1)} · uncertainty ${pct(region.pollMoe || 4.5, 1)}</p>
+        <p>${html(region.type)} · ${region.population.toLocaleString()} people · estimate ${pct(region.support, 1)} · turnout ${pct(effectiveTurnout(region), 1)} · measurement error ${pct(region.measurementError || 4.5, 1)}</p>
         <div class="cr-chip-row">${(region.concerns || []).map((item) => `<span>${html(item)}</span>`).join("")}</div>
         <div class="cr-group-mini-grid">${groupRows.map(([id, share]) => `<div><strong>${html(state.campaign.groups[id].name)}</strong><span>${share}% of region</span><em>support ${pct(state.campaign.groups[id].support, 1)} · turnout ${pct(state.campaign.groups[id].turnout, 0)}</em></div>`).join("")}</div>
       </div>
@@ -1178,6 +1553,7 @@
           </div>
           ${renderTargetControls()}
         </div>
+        ${renderScheduleBoard()}
         <div class="cr-action-board">
           ${Object.entries(groups).map(([category, items]) => `<section><h3>${html(category)}</h3><div class="cr-card-grid">${items.map(renderActionCard).join("")}</div></section>`).join("")}
         </div>
@@ -1199,7 +1575,9 @@
     const targetText = actionTargetText(action);
     const usedKey = `${action.id}:${state.campaign.selectedRegionId}`;
     const used = Boolean(action.oncePerRegion && state.campaign.completedActions[usedKey]);
-    const disabled = !canPayCost(action.cost || {}) || used;
+    const eligibleSlot = firstEligibleScheduleSlot(action);
+    const disabled = !canAffordAdditionalCost(action.cost || {}) || used || !eligibleSlot || state.campaign.schedule?.resolved;
+    const reason = used ? "Used already in this region" : state.campaign.schedule?.resolved ? "Week operation already resolved" : !eligibleSlot ? "No matching schedule slot is open" : !canAffordAdditionalCost(action.cost || {}) ? "Not enough resources after scheduled actions" : "";
     return `
       <article class="cr-action-card">
         <span>${html(action.category || "Campaign")}</span>
@@ -1212,8 +1590,41 @@
           <p><strong>Risk:</strong> ${html(riskText(action.risk))}</p>
           <p><strong>Used before:</strong> ${used ? "yes" : "no"}</p>
         </div>
-        <button class="cr-btn ${disabled ? "subtle" : "primary"} full" data-do-action="${html(action.id)}" ${disabled ? "disabled" : ""} type="button">Do This</button>
+        <button class="cr-btn ${disabled ? "subtle" : "primary"} full" data-schedule-action="${html(action.id)}" ${disabled ? "disabled" : ""} type="button">${eligibleSlot ? `Schedule: ${labelize(eligibleSlot)}` : "Schedule"}</button>
+        ${reason ? `<p class="cr-disabled-reason">${html(reason)}</p>` : ""}
       </article>
+    `;
+  }
+
+  function renderScheduleBoard() {
+    const schedule = state.campaign.schedule || { candidate: null, staff: null, volunteers: null, media: null, report: [] };
+    const slots = [
+      ["candidate", "Candidate Time", "Speeches, town halls, debates, and visible campaign work."],
+      ["staff", "Staff Operation", "Research, field offices, polling, and logistics."],
+      ["volunteers", "Volunteer Operation", "Canvassing, phonebanks, registration, and turnout."],
+      ["media", "Media/Message", "Ads, digital outreach, earned media, and press work."]
+    ];
+    const filled = slots.filter(([id]) => schedule[id]).length;
+    return `
+      <section class="cr-schedule-board">
+        <div class="cr-panel-head">
+          <div>
+            <h3>Weekly Schedule</h3>
+            <p>Plan up to four operations, then resolve them together. Costs are checked against the whole schedule so you cannot overbook staff, volunteers, stamina, or funds.</p>
+          </div>
+          <div class="cr-action-stack inline">
+            <button class="cr-btn primary" data-resolve-schedule ${filled ? "" : "disabled"} type="button">Resolve Schedule</button>
+            <button class="cr-btn subtle" data-clear-schedule ${filled && !schedule.resolved ? "" : "disabled"} type="button">Clear</button>
+          </div>
+        </div>
+        <div class="cr-schedule-slots">
+          ${slots.map(([id, label, text]) => {
+            const item = schedule[id];
+            return `<div class="cr-schedule-slot ${item ? "filled" : ""}"><span>${html(label)}</span><strong>${html(item?.name || "Open")}</strong><em>${html(item ? `${item.regionName} · ${item.groupName}` : text)}</em>${item && !schedule.resolved ? `<button type="button" data-unschedule="${id}">Remove</button>` : ""}</div>`;
+          }).join("")}
+        </div>
+        ${(schedule.report || []).length ? `<div class="cr-result-note"><strong>Schedule report</strong>${schedule.report.map((item) => `<p>${html(item)}</p>`).join("")}</div>` : ""}
+      </section>
     `;
   }
 
@@ -1268,36 +1679,186 @@
     });
   }
 
+  function scheduledCosts() {
+    const costs = {};
+    Object.values(state.campaign.schedule || {}).forEach((item) => {
+      if (!item || typeof item !== "object" || !item.cost) return;
+      Object.entries(item.cost).forEach(([key, value]) => {
+        costs[key] = (costs[key] || 0) + Number(value || 0);
+      });
+    });
+    return costs;
+  }
+
+  function canAffordAdditionalCost(cost = {}) {
+    const r = state.campaign.resources;
+    const pending = scheduledCosts();
+    return Object.entries(cost).every(([key, value]) => {
+      const available = key === "money" ? r.money : (r[key] || 0);
+      return available >= (pending[key] || 0) + Number(value || 0);
+    });
+  }
+
   function payCost(cost = {}) {
     Object.entries(cost).forEach(([key, value]) => {
       state.campaign.resources[key] = clamp((state.campaign.resources[key] || 0) - Number(value), key === "money" ? -999999 : 0, 999999);
     });
   }
 
-  function doAction(actionId) {
+  function doAction(actionId, options = {}) {
     const action = byId(DATA.actions || [], actionId);
     if (!action || !canPayCost(action.cost || {})) return;
     const region = selectedRegion();
     const regionBefore = region?.support;
     const usedKey = `${action.id}:${state.campaign.selectedRegionId}`;
     if (action.oncePerRegion && state.campaign.completedActions[usedKey]) return;
+    if (action.id === "seekEndorsement") {
+      doEndorsementInterview(action, options);
+      return;
+    }
     payCost(action.cost || {});
-    const effects = { ...(action.effects || {}), groupEffects: action.groupEffects || {} };
+    let effects = { ...(action.effects || {}), groupEffects: action.groupEffects || {} };
+    let riskText = "";
+    if (action.risk && Math.random() < (action.risk.chance || 0) * difficulty().risk) {
+      const riskEffects = { ...action.risk };
+      riskText = riskEffects.log || "A risk event reduced the expected benefit.";
+      delete riskEffects.chance;
+      delete riskEffects.log;
+      effects = mergeCampaignEffects(effects, riskEffects);
+    }
     const move = applyEffectsToCampaign(state.campaign, effects, {
       source: localizedActionName(action),
       regionId: state.campaign.selectedRegionId,
       groupId: state.campaign.selectedGroupId,
       regionBefore
     });
-    if (action.risk && Math.random() < (action.risk.chance || 0) * difficulty().risk) {
-      const riskEffects = { ...action.risk };
-      delete riskEffects.chance;
-      delete riskEffects.log;
-      applyEffectsToCampaign(state.campaign, riskEffects, { source: `${localizedActionName(action)} risk`, regionId: state.campaign.selectedRegionId, groupId: state.campaign.selectedGroupId });
-      state.campaign.lastMovement.items.unshift(action.risk.log || "A risk event reduced the expected benefit.");
-    }
+    if (riskText) state.campaign.lastMovement.items.unshift(riskText);
     if (action.oncePerRegion) state.campaign.completedActions[usedKey] = true;
     addLog(`${localizedActionName(action)} targeted ${actionTargetText(action)}. District movement ${signed(move.after - move.before, " pts")}.`, "action");
+    if (options.saveAndRender !== false) {
+      save();
+      render();
+    }
+  }
+
+  function doEndorsementInterview(action, options = {}) {
+    if (!canPayCost(action.cost || {})) return;
+    const endorsement = endorsementById(state.campaign.selectedEndorsementId);
+    if (!endorsement) return;
+    payCost(action.cost || {});
+    const progress = endorsementProgress(endorsement);
+    const before = districtPoll();
+    let items;
+    if (progress.met || progress.value >= 92 || Math.random() * 100 < progress.value * 0.72) {
+      state.campaign.endorsements[endorsement.id] = "won";
+      applyEffectsToCampaign(state.campaign, endorsement.effects || {}, { source: `${endorsement.name} endorsement`, quiet: true });
+      items = [`${endorsement.name} endorsed the campaign after the interview.`, `Requirement: ${progress.text}.`];
+      addLog(`${endorsement.name} endorsed the campaign after an interview.`, "endorsement");
+    } else {
+      state.campaign.endorsements[endorsement.id] = "interviewed";
+      applyEffectsToCampaign(state.campaign, { media: 1, trust: 0.3 }, { source: `${endorsement.name} interview`, quiet: true });
+      items = [`${endorsement.name} did not endorse yet.`, `They want more evidence: ${progress.text}.`];
+      addLog(`${endorsement.name} held endorsement pending after an interview.`, "endorsement");
+    }
+    refreshAllRegionPolls(state.campaign);
+    state.campaign.lastMovement = {
+      source: "Endorsement interview",
+      before,
+      after: districtPoll(),
+      items
+    };
+    if (options.saveAndRender !== false) {
+      save();
+      render();
+    }
+  }
+
+  function mergeCampaignEffects(base = {}, extra = {}) {
+    const merged = clone(base);
+    Object.entries(extra || {}).forEach(([key, value]) => {
+      if (typeof value === "number") merged[key] = Number(merged[key] || 0) + value;
+      else if (key === "groups" || key === "regions" || key === "issueMomentum") {
+        merged[key] = { ...(merged[key] || {}) };
+        Object.entries(value || {}).forEach(([id, amount]) => merged[key][id] = Number(merged[key][id] || 0) + Number(amount || 0));
+      } else if (key === "groupEffects") {
+        merged.groupEffects = { ...(merged.groupEffects || {}) };
+        Object.entries(value || {}).forEach(([id, effect]) => {
+          merged.groupEffects[id] = { ...(merged.groupEffects[id] || {}) };
+          Object.entries(effect || {}).forEach(([effectKey, amount]) => {
+            merged.groupEffects[id][effectKey] = Number(merged.groupEffects[id][effectKey] || 0) + Number(amount || 0);
+          });
+        });
+      } else {
+        merged[key] = value;
+      }
+    });
+    return merged;
+  }
+
+  function firstEligibleScheduleSlot(action) {
+    const schedule = state.campaign.schedule || {};
+    const cost = action.cost || {};
+    const slots = [];
+    if (cost.time || cost.energy || ["Field", "Events", "Debate"].includes(action.category)) slots.push("candidate");
+    if (cost.staff || ["Research", "Operations"].includes(action.category)) slots.push("staff");
+    if (cost.volunteers || String(action.name || "").toLowerCase().includes("canvass") || String(action.name || "").toLowerCase().includes("phone")) slots.push("volunteers");
+    if (cost.money || action.category === "Media" || String(action.name || "").toLowerCase().includes("ad")) slots.push("media");
+    if (!slots.length) slots.push("candidate");
+    return slots.find((slot) => !schedule[slot]);
+  }
+
+  function scheduleAction(actionId) {
+    const action = byId(DATA.actions || [], actionId);
+    if (!action || state.campaign.schedule?.resolved) return;
+    const slot = firstEligibleScheduleSlot(action);
+    if (!slot || !canAffordAdditionalCost(action.cost || {})) {
+      announce("That action cannot fit into the remaining weekly schedule.");
+      return;
+    }
+    state.campaign.schedule[slot] = {
+      id: action.id,
+      name: localizedActionName(action),
+      cost: clone(action.cost || {}),
+      regionId: state.campaign.selectedRegionId,
+      regionName: selectedRegion()?.name || "selected region",
+      groupId: state.campaign.selectedGroupId,
+      groupName: selectedGroup()?.name || "selected group"
+    };
+    announce(`${localizedActionName(action)} added to the ${labelize(slot)} slot.`);
+    save();
+    render();
+  }
+
+  function unscheduleAction(slot) {
+    if (!state.campaign.schedule || state.campaign.schedule.resolved) return;
+    state.campaign.schedule[slot] = null;
+    save();
+    render();
+  }
+
+  function clearSchedule() {
+    state.campaign.schedule = { candidate: null, staff: null, volunteers: null, media: null, resolved: false, report: [] };
+    save();
+    render();
+  }
+
+  function resolveSchedule() {
+    const schedule = state.campaign.schedule || {};
+    const entries = ["candidate", "staff", "volunteers", "media"].map((slot) => [slot, schedule[slot]]).filter(([, item]) => item);
+    if (!entries.length || schedule.resolved) return;
+    const report = [];
+    entries.forEach(([slot, item]) => {
+      state.campaign.selectedRegionId = item.regionId;
+      state.campaign.selectedGroupId = item.groupId;
+      const before = districtPoll();
+      doAction(item.id, { saveAndRender: false });
+      const after = districtPoll();
+      report.push(`${labelize(slot)}: ${item.name} in ${item.regionName} moved the district estimate ${signed(after - before, " pts")}.`);
+    });
+    schedule.resolved = true;
+    schedule.report = report;
+    state.campaign.weekStep = "report";
+    addLog(`Resolved weekly schedule: ${report.join(" ")}`, "schedule");
     save();
     render();
   }
@@ -1322,6 +1883,7 @@
               </button>
             `).join("")}
           </div>
+          <button class="cr-btn subtle full" data-skip-weekly-question type="button">Skip Question · -1 trust, rival controls the story</button>
         </article>
         <aside class="cr-qa-side">
           <h2>Visible Consequences</h2>
@@ -1345,6 +1907,17 @@
     state.campaign.answeredEvents.push(event.id);
     state.campaign.currentEventId = null;
     addLog(`${event.title}: ${choice.label}`, "event");
+    save();
+    render();
+  }
+
+  function skipWeeklyQuestion() {
+    const event = currentEvent();
+    if (!event) return;
+    applyEffectsToCampaign(state.campaign, { trust: -1, media: 1, opponentSupport: 0.8 }, { source: `Skipped: ${event.title}` });
+    state.campaign.answeredEvents.push(event.id);
+    state.campaign.currentEventId = null;
+    addLog(`Skipped weekly question: ${event.title}.`, "event");
     save();
     render();
   }
@@ -1478,9 +2051,11 @@
     const cost = 3200;
     if (state.campaign.resources.money < cost) return;
     state.campaign.resources.money -= cost;
-    state.campaign.regions.forEach((region) => region.pollMoe = clamp((region.pollMoe || 4.5) - 1.3, 1.8, 7));
+    state.campaign.regions.forEach((region) => region.measurementError = clamp((region.measurementError || 4.5) - 1.2, 1.6, 8));
+    state.campaign.polling.pollsBought += 1;
+    state.campaign.polling.lastPollWeek = state.campaign.week;
     const swing = topSwingGroups(3).map((item) => `${item.group.name} (${pct(item.group.support, 1)}, ${Math.round(item.score)} swing value)`).join("; ");
-    state.campaign.lastPoll = `District estimate ${pct(districtPoll(), 1)} ± ${pct(pollMoe(), 1)}. Top swing groups: ${swing}.`;
+    state.campaign.lastPoll = `Internal poll, week ${state.campaign.week}: district estimate ${pct(districtPoll(), 1)} ± ${pct(pollMoe(), 1)} measurement error. Top swing groups: ${swing}. Election volatility remains separate.`;
     state.campaign.lastMovement = {
       source: "Internal poll",
       before: districtPoll(),
@@ -1509,6 +2084,7 @@
   function renderEndorsementCard(endorsement) {
     const progress = endorsementProgress(endorsement);
     const won = state.campaign.endorsements[endorsement.id] === "won";
+    const interviewed = state.campaign.endorsements[endorsement.id] === "interviewed";
     return `
       <article class="cr-action-card">
         <span>Endorsement</span>
@@ -1519,7 +2095,7 @@
           <p><strong>Progress:</strong> ${Math.round(progress.value)}%</p>
           <p><strong>Effect:</strong> ${html(effectText({ effects: endorsement.effects || {} }))}</p>
         </div>
-        <button class="cr-btn ${progress.met && !won ? "primary" : "subtle"} full" data-request-endorsement="${html(endorsement.id)}" ${!progress.met || won ? "disabled" : ""} type="button">${won ? "Endorsed" : "Request Endorsement"}</button>
+        <button class="cr-btn ${progress.met && !won ? "primary" : "subtle"} full" data-request-endorsement="${html(endorsement.id)}" ${!progress.met || won ? "disabled" : ""} type="button">${won ? "Endorsed" : interviewed ? "Interviewed · build support" : "Request Endorsement"}</button>
       </article>
     `;
   }
@@ -1642,17 +2218,25 @@
     const d = state.campaign.debate;
     const questions = debateQuestions();
     if (d.completed) {
-      return `<section class="cr-grid two"><article class="cr-panel cr-debate-stage"><h2>Debate Clips</h2><p>${html(d.clip || "The debate is complete.")}</p>${renderWhyMoved()}</article><aside class="cr-panel"><h2>Answers</h2>${d.answers.map((answer) => `<p>${html(answer)}</p>`).join("")}</aside></section>`;
+      return `<section class="cr-grid two"><article class="cr-panel cr-debate-stage"><h2>Debate Report</h2><p>${html(d.clip || "The debate is complete.")}</p>${renderDebateReport()}${renderWhyMoved()}</article><aside class="cr-panel"><h2>Answers</h2>${d.answers.map((answer) => `<p><strong>${html(answer.questionTitle || "Question")}</strong><br>${html(answer.choiceLabel || answer)}</p>`).join("")}</aside></section>`;
+    }
+    if (d.declined) {
+      return `<section class="cr-panel cr-debate-stage"><h2>Debate Declined</h2><p>The campaign declined the scheduled debate. You avoided a risky stage, but the opponent gained a clean attack line.</p>${renderWhyMoved()}</section>`;
     }
     if (!d.started) {
+      const due = state.campaign.week >= d.scheduledWeek;
       return `
         <section class="cr-grid two">
           <article class="cr-panel cr-debate-stage">
             <p class="cr-eyebrow">Debate Hall</p>
             <h2>Moderator, Audience, and Cameras</h2>
-            <p>The debate uses prep, eloquence, policy knowledge, fatigue, opponent debate skill, and the platform you chose at setup. It has three questions and a visible post-debate clip.</p>
+            <p>${due ? "The scheduled debate is now due." : `The debate is scheduled for week ${d.scheduledWeek}. Until then, prep actions and mock answers improve readiness.`} The debate uses prep, eloquence, policy knowledge, fatigue, opponent debate skill, and the platform you chose at setup.</p>
             <div class="cr-stage-visual"><div>Moderator</div><div>${html(state.candidate.name)}</div><div>${html(state.campaign.opponent.name)}</div><div>Audience</div></div>
-            <button class="cr-btn primary full" data-start-debate type="button">Enter Debate Hall</button>
+            <div class="cr-action-stack">
+              <button class="cr-btn primary full" data-start-debate ${due ? "" : "disabled"} type="button">Enter Debate Hall</button>
+              <button class="cr-btn subtle full" data-decline-debate ${due ? "" : "disabled"} type="button">Decline Debate · -2 trust, opponent attack</button>
+            </div>
+            ${due ? "" : `<p class="cr-disabled-reason">Debate actions are preparation only until week ${d.scheduledWeek}.</p>`}
           </article>
           <aside class="cr-panel">
             <h2>Debate Readiness</h2>
@@ -1668,11 +2252,12 @@
     return `
       <section class="cr-qa-layout">
         <article class="cr-question-panel cr-debate-stage">
-          <p class="cr-eyebrow">Debate Question ${d.currentIndex + 1} of 3</p>
+          <p class="cr-eyebrow">Debate Question ${d.currentIndex + 1} of ${Math.min(3, questions.length)}</p>
           <h2>${html(question.title)}</h2>
-          <p>${html(question.text)}</p>
+          <p>${html(question.audience || "")}</p>
+          <p>${html(question.question || question.text)}</p>
           <div class="cr-answer-list">${question.choices.map((choice, index) => `
-            <button class="cr-answer" data-debate-choice="${index}" type="button"><span>${html(choice.tone)}</span><strong>${html(choice.label)}</strong><em>${html(choice.preview)}</em></button>
+            <button class="cr-answer" data-debate-choice="${index}" type="button"><span>${html(choice.tone || "Answer")}</span><strong>${html(choice.label)}</strong><em>${html(choice.preview || choice.text || effectText({ effects: choice.effects || {} }))}</em></button>
           `).join("")}</div>
         </article>
         <aside class="cr-qa-side">
@@ -1685,6 +2270,7 @@
   }
 
   function debateQuestions() {
+    if ((DATA.debateQuestions || []).length) return DATA.debateQuestions;
     return [
       {
         title: "School Funding and Taxes",
@@ -1717,8 +2303,25 @@
   }
 
   function startDebate() {
+    if (state.campaign.week < state.campaign.debate.scheduledWeek) return;
     state.campaign.debate.started = true;
     state.campaign.debate.currentIndex = 0;
+    state.campaign.debate.baselinePoll = districtPoll();
+    state.campaign.debate.baselineTrust = state.campaign.resources.trust;
+    state.campaign.debate.score = 0;
+    state.campaign.debate.opponentScore = 0;
+    state.campaign.debate.answers = [];
+    save();
+    render();
+  }
+
+  function declineDebate() {
+    const d = state.campaign.debate;
+    if (!d || d.completed || d.declined || state.campaign.week < d.scheduledWeek) return;
+    d.declined = true;
+    d.clip = `${state.campaign.opponent.name} uses the declined debate as an attack line.`;
+    applyEffectsToCampaign(state.campaign, { trust: -2, media: 2, opponentSupport: 1.2 }, { source: "Debate declined" });
+    addLog("Declined the scheduled debate.", "debate");
     save();
     render();
   }
@@ -1728,22 +2331,69 @@
     const question = debateQuestions()[d.currentIndex];
     const choice = question?.choices?.[index];
     if (!choice) return;
-    const before = districtPoll();
+    const baseEffects = choice.effects || {};
     const prepBonus = (d.prep - 50) * 0.018 + (state.candidate.stats.eloquence - 55) * 0.012 + (state.candidate.stats.policy - 55) * 0.008 - state.candidate.fatigue * 0.01;
     const opponentPenalty = ((state.campaign.opponent.stats?.debate || 60) - 60) * 0.012 * difficulty().opposition;
-    const effects = { ...choice.effects, regionSupport: (choice.effects.regionSupport || 0) + prepBonus - opponentPenalty };
+    const effects = { ...baseEffects, regionSupport: (baseEffects.regionSupport || 0) + prepBonus - opponentPenalty };
     applyEffectsToCampaign(state.campaign, effects, { source: `Debate: ${question.title}` });
-    d.answers.push(`${question.title}: ${choice.label}`);
+    const answerScore = 50 + (baseEffects.debate || 0) + d.prep * 0.12 + state.candidate.stats.eloquence * 0.08 + state.candidate.stats.policy * 0.05 - state.candidate.fatigue * 0.08;
+    const opponentScore = 47 + (state.campaign.opponent.stats?.debate || 60) * 0.12 * difficulty().opposition + Math.random() * 4;
+    d.score += answerScore;
+    d.opponentScore += opponentScore;
+    d.answers.push({ questionTitle: question.title, choiceLabel: choice.label, score: Math.round(answerScore), opponentScore: Math.round(opponentScore) });
     d.currentIndex += 1;
-    if (d.currentIndex >= 3) {
+    if (d.currentIndex >= Math.min(3, debateQuestions().length)) {
       d.completed = true;
       d.started = false;
-      const movement = districtPoll() - before;
-      d.clip = movement >= 1.5 ? "Post-debate coverage calls your answers crisp and grounded." : movement <= -1.2 ? "The best clip belongs to your opponent, and your campaign spends the morning explaining context." : "Coverage is mixed, with voters mostly hearing what they already believed.";
+      const movement = districtPoll() - (d.baselinePoll ?? districtPoll());
+      d.report = buildDebateReport(movement);
+      d.clip = d.report.clip;
       addLog(`Debate completed. ${d.clip}`, "debate");
     }
     save();
     render();
+  }
+
+  function buildDebateReport(movement) {
+    const d = state.campaign.debate;
+    const answers = d.answers || [];
+    const best = [...answers].sort((a, b) => b.score - a.score)[0];
+    const weakest = [...answers].sort((a, b) => a.score - b.score)[0];
+    const groups = Object.values(state.campaign.groups).sort((a, b) => b.support - a.support);
+    const candidateScore = Math.round(d.score / Math.max(1, answers.length));
+    const opponentScore = Math.round(d.opponentScore / Math.max(1, answers.length));
+    const clip = candidateScore >= opponentScore + 4 || movement >= 1.2
+      ? "Post-debate coverage calls your answers specific, grounded, and ready for office."
+      : candidateScore <= opponentScore - 4 || movement <= -1.1
+        ? `The strongest clip belongs to ${state.campaign.opponent.name}, and your campaign spends the morning explaining context.`
+        : "Coverage is mixed: supporters heard discipline, skeptics still want proof.";
+    return {
+      candidateScore,
+      opponentScore,
+      best: best?.questionTitle || "No clear standout",
+      weakest: weakest?.questionTitle || "No clear weak answer",
+      pollMovement: movement,
+      trustMovement: state.campaign.resources.trust - (d.baselineTrust ?? state.campaign.resources.trust),
+      groupsGained: groups.slice(0, 2).map((group) => group.name),
+      groupsLost: groups.slice(-2).map((group) => group.name),
+      clip,
+      attackLine: movement < 0 ? `${state.campaign.opponent.name} says the debate exposed shallow execution.` : "The opponent argues you overpromised, but the clip is less damaging."
+    };
+  }
+
+  function renderDebateReport() {
+    const report = state.campaign.debate.report;
+    if (!report) return "";
+    return `
+      <div class="cr-result-board won cr-debate-report">
+        <div><span>Your score</span><strong>${report.candidateScore}</strong><em>average answer quality</em></div>
+        <div><span>Opponent score</span><strong>${report.opponentScore}</strong><em>estimated stage performance</em></div>
+      </div>
+      <p><strong>Best answer:</strong> ${html(report.best)}. <strong>Weakest answer:</strong> ${html(report.weakest)}.</p>
+      <p><strong>Movement:</strong> district ${signed(report.pollMovement, " pts")}; trust ${signed(report.trustMovement, " pts")}.</p>
+      <p><strong>Groups helped:</strong> ${html(report.groupsGained.join(", "))}. <strong>Groups still skeptical:</strong> ${html(report.groupsLost.join(", "))}.</p>
+      <p><strong>Attack line:</strong> ${html(report.attackLine)}</p>
+    `;
   }
 
   function renderElectionMath() {
@@ -1929,8 +2579,32 @@
     addLog(`Rival turn: ${move.text}`, "rival");
   }
 
+  function canAdvanceWeek() {
+    const c = state.campaign;
+    if (c.currentEventId) return { ok: false, reason: "Answer or skip the weekly question before advancing." };
+    const scheduledItems = Object.values(c.schedule || {}).filter((item) => item && typeof item === "object" && item.id);
+    if (scheduledItems.length && !c.schedule.resolved) return { ok: false, reason: "Resolve the weekly schedule before advancing." };
+    if (c.debate && c.week >= c.debate.scheduledWeek && !c.debate.completed && !c.debate.declined) {
+      return { ok: false, reason: `Participate in or decline the scheduled week ${c.debate.scheduledWeek} debate before advancing.` };
+    }
+    if (c.focus?.awaitingChoice) return { ok: false, reason: "Finish the active agenda path decision before advancing." };
+    return { ok: true, reason: "" };
+  }
+
   function advanceWeek() {
     const c = state.campaign;
+    const advance = canAdvanceWeek();
+    if (!advance.ok) {
+      c.lastMovement = {
+        source: "Turn blocked",
+        before: districtPoll(c),
+        after: districtPoll(c),
+        items: [advance.reason]
+      };
+      announce(advance.reason);
+      render();
+      return;
+    }
     if (c.week >= c.maxWeeks) {
       runElection();
       return;
@@ -1944,12 +2618,15 @@
     c.resources.staff += c.resources.staff < 2 ? 1 : 0;
     c.resources.volunteers = Math.max(0, Math.round(c.resources.volunteers + 3 - difficulty().opposition));
     state.candidate.fatigue = clamp(state.candidate.fatigue - 9, 0, 100);
+    c.schedule = { candidate: null, staff: null, volunteers: null, media: null, resolved: false, report: [] };
+    c.weekStep = "briefing";
     c.regions.forEach((region) => {
       region.adSaturation = clamp(region.adSaturation - 4, 0, 100);
       region.directSupport = clamp(region.directSupport - 0.05 * difficulty().opposition, -30, 30);
     });
     if (!c.currentEventId) c.currentEventId = drawEligibleEvent(c);
     refreshAllRegionPolls(c);
+    normalizeCampaign(c);
     addLog(`Week ${c.week} begins. Resources reset, the rival moved, and a scenario question is available.`, "calendar");
     save();
     render();
@@ -1958,17 +2635,24 @@
   function runElection() {
     const c = state.campaign;
     refreshAllRegionPolls(c);
+    const sharedLateSwing = (Math.random() * 2 - 1) * difficulty().pollError * 0.35;
     const regionResults = c.regions.map((region) => {
-      const turnout = effectiveTurnout(region, c);
+      const turnoutShock = (Math.random() * 2 - 1) * (region.turnoutError || 1.5);
+      const turnout = clamp(effectiveTurnout(region, c) + turnoutShock, 18, 96);
       const likelyVotes = Math.round(region.population * turnout / 100);
-      const lateError = (Math.random() * 2 - 1) * (region.pollMoe || pollMoe(c)) * 0.55;
+      const regionalError = (Math.random() * 2 - 1) * (region.electionVolatility || 3);
+      const lateMovement = region.lateMovement || 0;
       const fatiguePenalty = state.candidate.fatigue > 45 ? -1.2 : 0;
-      const finalSupport = clamp(region.support + lateError + fatiguePenalty, 5, 95);
+      const unresolvedPenalty = c.currentEventId ? -0.8 : 0;
+      const debatePenalty = c.debate?.declined ? -0.8 : c.debate?.completed ? 0 : -0.5;
+      const finalSupport = clamp(region.support + sharedLateSwing + regionalError + lateMovement + fatiguePenalty + unresolvedPenalty + debatePenalty, 5, 95);
       return {
         id: region.id,
         name: region.name,
         support: finalSupport,
         turnout,
+        projectedSupport: region.support,
+        swing: finalSupport - region.support,
         playerVotes: Math.round(likelyVotes * finalSupport / 100),
         opponentVotes: Math.round(likelyVotes * (100 - finalSupport) / 100)
       };
@@ -1986,6 +2670,7 @@
       playerVotes,
       opponentVotes,
       margin: playerShare - opponentShare,
+      sharedLateSwing,
       regions: regionResults,
       notes: buildElectionNotes(regionResults, won)
     };
@@ -2058,55 +2743,178 @@
     state.phase = "governing";
     state.govView = "desk";
     state.career.officesHeld = [...new Set([...state.career.officesHeld, office.name])];
-    const budgetBase = Math.round(110 * (office.governingPower || 0.7) / difficulty().budget);
+    const budgetBase = Math.round(105 * (office.governingPower || 0.7) / difficulty().budget);
+    const fiscal = makeFiscalModel(budgetBase, officeBudgetLines(office.id));
     state.governing = {
       month: 1,
       termMonths: office.tier >= 4 ? 24 : 18,
       approval: clamp(state.results.playerShare + 6, 25, 82),
       trust: state.campaign.resources.trust,
-      budget: budgetBase,
+      budget: 0,
       deficit: 0,
       capital: Math.round(state.campaign.resources.capital + 8),
-      metrics: { education: 50, housing: 50, safety: 50, economy: 50, services: 50 },
-      budgetLines: { education: 28, housing: 16, safety: 18, services: 18, administration: 10, reserves: 10 },
+      metrics: makeGoverningMetrics(office.id),
+      fiscal,
+      budgetLines: fiscal.allocations,
+      monthlyActions: { administration: false, outreach: false },
       staff: {},
+      staffModifiers: {},
       factions: makeFactions(),
       bills: makePolicyBills(),
       oppositionBill: makeOppositionOffer(),
       log: ["Election night is over. Every campaign promise now has a budget, a faction count, and a reelection consequence."]
     };
+    recalculateFiscal(state.governing);
     addLog("Entered governing mode. The administration, budget, legislature, and reelection record are now active.", "governing");
     save();
     render();
   }
 
+  function makeGoverningMetrics(officeId) {
+    if (officeId === "schoolBoard") {
+      return {
+        studentAchievement: 50,
+        attendance: 50,
+        teacherRetention: 50,
+        classSize: 50,
+        facilityCondition: 50,
+        safety: 50,
+        parentTrust: 50,
+        staffMorale: 50,
+        transportation: 50,
+        education: 50
+      };
+    }
+    return { education: 50, housing: 50, safety: 50, economy: 50, services: 50, administration: 50, healthcare: 50, environment: 50 };
+  }
+
+  function officeBudgetLines(officeId) {
+    if (officeId === "schoolBoard") {
+      return { instruction: 34, teacherPay: 18, studentSupport: 12, transportation: 9, facilities: 10, safety: 7, administration: 6, reserves: 4 };
+    }
+    return { education: 28, housing: 16, safety: 18, services: 18, administration: 10, reserves: 10 };
+  }
+
+  function makeFiscalModel(revenue = 80, allocations = {}) {
+    const cleanAllocations = { ...allocations };
+    const discretionarySpending = Object.entries(cleanAllocations).filter(([key]) => key !== "reserves").reduce((sum, [, value]) => sum + Number(value || 0), 0);
+    const reserves = Number(cleanAllocations.reserves || 0);
+    const model = {
+      revenue: Math.round(revenue),
+      mandatorySpending: Math.round(revenue * 0.42),
+      discretionarySpending,
+      reserves,
+      debt: 0,
+      debtService: 0,
+      projectedBalance: 0,
+      allocations: cleanAllocations
+    };
+    return recalculateFiscalModel(model);
+  }
+
+  function recalculateFiscalModel(fiscal) {
+    fiscal.discretionarySpending = Object.entries(fiscal.allocations || {}).filter(([key]) => key !== "reserves").reduce((sum, [, value]) => sum + Number(value || 0), 0);
+    fiscal.reserves = Number(fiscal.allocations?.reserves || fiscal.reserves || 0);
+    fiscal.debtService = Math.round((fiscal.debt || 0) * 0.08);
+    fiscal.projectedBalance = Math.round((fiscal.revenue || 0) - (fiscal.mandatorySpending || 0) - fiscal.discretionarySpending - fiscal.debtService);
+    return fiscal;
+  }
+
+  function recalculateFiscal(governing = state?.governing) {
+    if (!governing) return null;
+    governing.fiscal = governing.fiscal || makeFiscalModel(governing.budget || 80, governing.budgetLines);
+    recalculateFiscalModel(governing.fiscal);
+    governing.budgetLines = governing.fiscal.allocations;
+    governing.budget = governing.fiscal.projectedBalance;
+    governing.deficit = governing.fiscal.debt || 0;
+    return governing.fiscal;
+  }
+
   function makeFactions() {
-    return [
-      { id: "progressive", name: "Progressive Caucus", seats: 5, support: 52, asks: ["housing", "labor", "education"] },
-      { id: "labor", name: "Labor Caucus", seats: 4, support: 54, asks: ["labor", "education", "healthcare"] },
-      { id: "reform", name: "Bipartisan Reform Caucus", seats: 6, support: 50, asks: ["budget", "government", "education"] },
-      { id: "business", name: "Business Conservative Caucus", seats: 5, support: 38, asks: ["taxes", "budget", "economicDevelopment"] },
-      { id: "rural", name: "Rural Coalition", seats: 4, support: 43, asks: ["ruralDevelopment", "infrastructure", "healthcare"] },
-      { id: "independent", name: "Independent Members", seats: 3, support: 48, asks: ["budget", "publicSafety", "ethics"] }
+    if (currentOffice().id === "schoolBoard") {
+      return [
+        { id: "parentCoalition", name: "Parent Coalition", seats: 3, support: 50, asks: ["studentSupport", "safety", "transportation"], expectations: [] },
+        { id: "teacherAssociation", name: "Teacher Association", seats: 2, support: 55, asks: ["teacherPay", "classSize", "studentSupport"], expectations: [] },
+        { id: "fiscalWatch", name: "Fiscal Watch Members", seats: 2, support: 43, asks: ["budget", "reserves", "administration"], expectations: [] },
+        { id: "equityAdvocates", name: "Equity Advocates", seats: 1, support: 52, asks: ["instruction", "attendance", "studentSupport"], expectations: [] },
+        { id: "safetyCommittee", name: "School Safety Committee", seats: 1, support: 48, asks: ["safety", "facilityCondition", "parentTrust"], expectations: [] },
+        { id: "ruralFamilies", name: "Rural Families Bloc", seats: 1, support: 46, asks: ["transportation", "facilityCondition", "studentSupport"], expectations: [] }
+      ];
+    }
+    const source = (DATA.factions || []).length ? DATA.factions : [
+      { id: "progressiveBloc", name: "Progressive Caucus", seats: 5, support: 52, priorities: ["housing", "labor", "education"] },
+      { id: "laborCaucus", name: "Labor Caucus", seats: 4, support: 54, priorities: ["labor", "education", "healthcare"] },
+      { id: "moderateReformers", name: "Bipartisan Reform Caucus", seats: 6, support: 50, priorities: ["budget", "government", "education"] },
+      { id: "businessConservatives", name: "Business Conservative Caucus", seats: 5, support: 38, priorities: ["taxes", "budget", "economicDevelopment"] },
+      { id: "ruralCoalition", name: "Rural Coalition", seats: 4, support: 43, priorities: ["ruralDevelopment", "infrastructure", "healthcare"] },
+      { id: "independents", name: "Independent Members", seats: 3, support: 48, priorities: ["budget", "publicSafety", "ethics"] }
     ];
+    return source.map((item) => ({ id: item.id, name: item.name, seats: item.seats, support: item.support, asks: item.asks || item.priorities || [], expectations: [] }));
   }
 
   function makePolicyBills() {
-    return [
-      { id: "schoolMeals", area: "Education", title: "Universal School Meals", summary: "Feed every student during the school day.", cost: 8, capital: 2, effects: { education: 5, approval: 2, groups: { parents: 2, teachers: 1 } }, status: "draft" },
-      { id: "teacherRecruitment", area: "Education", title: "Teacher Recruitment Plan", summary: "Raise retention grants and create a classroom residency pipeline.", cost: 7, capital: 2, effects: { education: 6, approval: 1, groups: { teachers: 3 } }, status: "draft" },
-      { id: "zoningReform", area: "Housing", title: "Neighborhood Housing Compact", summary: "Allow more homes near jobs while funding infrastructure.", cost: 5, capital: 3, effects: { housing: 7, approval: 1, groups: { renters: 2, homeowners: -1 } }, status: "draft" },
-      { id: "safetyResponse", area: "Public Safety", title: "Response and Prevention Act", summary: "Fund response times, violence prevention, and accountability metrics.", cost: 7, capital: 3, effects: { safety: 7, approval: 1, groups: { parents: 1.5, seniors: 1 } }, status: "draft" },
-      { id: "openRecords", area: "Government", title: "Open Records Expansion", summary: "Publish meetings, contracts, and budget updates online.", cost: 3, capital: 2, effects: { services: 3, approval: 1, trust: 3 }, status: "draft" }
+    const schoolBills = [
+      { id: "classSizePlan", area: "Instruction", title: "Class Size Reduction Plan", summary: "Hire aides and rebalance schedules in early grades.", cost: 8, capital: 2, effects: { studentAchievement: 4, classSize: 7, teacherRetention: 2, approval: 1 }, factions: { teacherAssociation: 8, parentCoalition: 4, fiscalWatch: -4 } },
+      { id: "teacherRetention", area: "Teacher Pay", title: "Teacher Retention Compact", summary: "Use retention grants, mentoring, and planning time to slow teacher turnover.", cost: 7, capital: 2, effects: { teacherRetention: 8, staffMorale: 6, studentAchievement: 2, approval: 1 }, factions: { teacherAssociation: 10, fiscalWatch: -3 } },
+      { id: "attendanceTeams", area: "Student Support", title: "Attendance and Family Outreach Teams", summary: "Create small teams that follow up quickly with families when students disappear from class.", cost: 5, capital: 2, effects: { attendance: 8, parentTrust: 3, studentAchievement: 2 }, factions: { parentCoalition: 6, equityAdvocates: 5, fiscalWatch: -2 } },
+      { id: "facilityRepairs", area: "Facilities", title: "Deferred Maintenance Repair List", summary: "Publish and fund a ranked list of roof, HVAC, accessibility, and safety repairs.", cost: 9, capital: 3, effects: { facilityCondition: 9, safety: 3, parentTrust: 2, approval: 1 }, factions: { safetyCommittee: 7, ruralFamilies: 4, fiscalWatch: -5 } },
+      { id: "busRouteAudit", area: "Transportation", title: "Bus Route Reliability Audit", summary: "Redesign late routes and publish monthly on-time data.", cost: 3, capital: 1, effects: { transportation: 8, attendance: 2, parentTrust: 1 }, factions: { ruralFamilies: 8, parentCoalition: 3, fiscalWatch: 1 } },
+      { id: "schoolSafety", area: "Safety", title: "Safety, Counseling, and Response Plan", summary: "Pair response protocols with prevention, counseling, and transparent incident reports.", cost: 6, capital: 3, effects: { safety: 8, parentTrust: 3, staffMorale: 1, approval: 1 }, factions: { safetyCommittee: 9, parentCoalition: 5, equityAdvocates: 1 } },
+      { id: "openMeetings", area: "Transparency", title: "Open Meetings and Budget Dashboard", summary: "Put agendas, contracts, budget line changes, and implementation updates in plain language.", cost: 2, capital: 2, effects: { parentTrust: 5, staffMorale: 1, approval: 1, trust: 3 }, factions: { fiscalWatch: 6, parentCoalition: 2 } }
     ];
+    if (currentOffice().id === "schoolBoard") return schoolBills.map((bill) => normalizeBill({ ...bill, status: "floor" }));
+    const policies = (DATA.governingPolicies || []).map((policy) => ({
+      id: policy.id,
+      area: policy.area,
+      title: policy.name,
+      summary: policy.text,
+      cost: policy.cost,
+      capital: policy.capital,
+      effects: { ...(policy.metrics || {}), groups: policy.groups || {} },
+      factions: policy.factions || {},
+      status: "floor"
+    }));
+    return (policies.length ? policies : []).map((bill) => normalizeBill(bill));
+  }
+
+  function normalizeBill(bill, month = state?.governing?.month || 1) {
+    bill.status = bill.status || "floor";
+    bill.stage = bill.stage || bill.status;
+    bill.cost = Number(bill.cost || 0);
+    bill.capital = Number(bill.capital || 0);
+    bill.draftCost = Number(bill.draftCost ?? Math.max(1, Math.ceil(bill.cost * 0.2)));
+    bill.implementationCost = Number(bill.implementationCost ?? Math.max(0, bill.cost - bill.draftCost));
+    bill.lockUntil = Number(bill.lockUntil || 0);
+    bill.sponsors = Number(bill.sponsors || 0);
+    bill.amended = Boolean(bill.amended);
+    bill.voteRecord = bill.voteRecord || null;
+    bill.draftingPaid = Boolean(bill.draftingPaid);
+    bill.history = bill.history || [];
+    return bill;
   }
 
   function makeOppositionOffer() {
+    const dataOffer = pick(DATA.oppositionBills || []);
+    if (dataOffer) {
+      return {
+        id: `${dataOffer.id}-${Date.now()}`,
+        title: dataOffer.name,
+        sponsor: dataOffer.sponsor,
+        ask: dataOffer.text,
+        choices: dataOffer.choices || [],
+        status: "pending"
+      };
+    }
     return {
       id: `oppo-${Date.now()}`,
-      title: "Property Tax Cap and Permit Streamlining Act",
-      ask: "Support a tax cap and faster permits in exchange for two votes on your education bill.",
-      effects: { budget: -4, approval: 1, business: 2, progressive: -1 },
+      title: "Board Fiscal Restraint Resolution",
+      sponsor: "Fiscal Watch Members",
+      ask: "The opposition proposes a spending cap in exchange for support on one student-support bill.",
+      choices: [
+        { label: "Accept the cap and claim discipline.", effects: { approval: 1, capital: -1, metrics: { education: -1 }, factions: { fiscalWatch: 5, teacherAssociation: -3 } } },
+        { label: "Negotiate an exemption for classrooms.", effects: { approval: 1, capital: -2, metrics: { studentAchievement: 1 }, factions: { fiscalWatch: 2, teacherAssociation: 1 } } },
+        { label: "Reject it publicly.", effects: { trust: 1, capital: -1, factions: { fiscalWatch: -4, teacherAssociation: 2 } } }
+      ],
       status: "pending"
     };
   }
@@ -2134,12 +2942,30 @@
 
   function renderGoverningMetrics() {
     const g = state.governing;
+    const school = currentOffice().id === "schoolBoard";
+    const fiscal = recalculateFiscal(g);
+    if (school) {
+      return `
+        <div class="cr-metric-grid governing">
+          ${metric("Approval", pct(g.approval, 0), "Public support for your governing record. Affects reelection, protests, and board leverage.")}
+          ${metric("Trust", pct(g.trust, 0), "Whether families, staff, and local press believe the board is honest and competent.")}
+          ${metric("Balance", Math.round(fiscal.projectedBalance), "Projected fiscal room after revenue, mandatory costs, discretionary lines, and debt service.")}
+          ${metric("Debt", Math.round(fiscal.debt), "Borrowed or overspent obligations that create future attacks.")}
+          ${metric("Capital", Math.round(g.capital), "Political capital for deals, faction meetings, appointments, and difficult votes.")}
+          ${metric("Achievement", Math.round(g.metrics.studentAchievement), "Student achievement trend.")}
+          ${metric("Attendance", Math.round(g.metrics.attendance), "Daily attendance and family outreach strength.")}
+          ${metric("Teachers", Math.round(g.metrics.teacherRetention), "Teacher retention and staffing stability.")}
+          ${metric("Facilities", Math.round(g.metrics.facilityCondition), "Building condition, repairs, HVAC, accessibility, and maintenance.")}
+          ${metric("Safety", Math.round(g.metrics.safety), "School safety confidence and response systems.")}
+        </div>
+      `;
+    }
     return `
       <div class="cr-metric-grid governing">
         ${metric("Approval", pct(g.approval, 0), "Public support for your governing record. Affects reelection, protests, and legislative leverage.")}
         ${metric("Trust", pct(g.trust, 0), "Whether voters believe the administration is honest and competent.")}
-        ${metric("Budget", Math.round(g.budget), "Available fiscal room. Difficulty increases monthly pressure.")}
-        ${metric("Deficit", Math.round(g.deficit), "Overspending that creates future attacks and economic stress.")}
+        ${metric("Balance", Math.round(fiscal.projectedBalance), "Available fiscal room after revenue, spending, reserves, and debt service.")}
+        ${metric("Debt", Math.round(fiscal.debt), "Overspending that creates future attacks and economic stress.")}
         ${metric("Capital", Math.round(g.capital), "Political capital for deals, faction meetings, appointments, and difficult votes.")}
         ${metric("Education", Math.round(g.metrics.education), "School outcomes and service quality.")}
         ${metric("Housing", Math.round(g.metrics.housing), "Housing affordability, supply, and renter pressure.")}
@@ -2171,10 +2997,11 @@
             <div><strong>Legislative Liaison</strong><p>The Reform Caucus and Rural Coalition can decide close votes. The opposition has its own bill.</p></div>
           </div>
           <div class="cr-answer-list">
-            <button class="cr-answer" data-admin-action="focus" type="button"><span>Calendar</span><strong>Protect one priority.</strong><em>+2 capital · +1 trust</em></button>
-            <button class="cr-answer" data-admin-action="listen" type="button"><span>Public</span><strong>Hold a listening month.</strong><em>+2 trust · -1 approval</em></button>
-            <button class="cr-answer" data-admin-action="push" type="button"><span>Pressure</span><strong>Push several promises at once.</strong><em>+2 approval · -4 budget · -2 capital</em></button>
+            <button class="cr-answer" data-admin-action="focus" ${g.monthlyActions?.administration ? "disabled" : ""} type="button"><span>Calendar</span><strong>Protect one priority.</strong><em>+2 capital · +1 trust</em></button>
+            <button class="cr-answer" data-admin-action="listen" ${g.monthlyActions?.administration ? "disabled" : ""} type="button"><span>Public</span><strong>Hold a listening month.</strong><em>+2 trust · -1 approval</em></button>
+            <button class="cr-answer" data-admin-action="push" ${g.monthlyActions?.administration ? "disabled" : ""} type="button"><span>Pressure</span><strong>Push several promises at once.</strong><em>+2 approval · debt risk · -2 capital</em></button>
           </div>
+          ${g.monthlyActions?.administration ? `<p class="cr-disabled-reason">Administration choice completed for month ${g.month}.</p>` : ""}
           <button class="cr-btn primary full" data-advance-month type="button">${g.month >= g.termMonths ? "Term Review" : "Advance Month"}</button>
         </article>
         <aside class="cr-panel">
@@ -2203,6 +3030,8 @@
 
   function renderStaffCard(staffer) {
     const appointed = state.governing.staff[staffer.role] === staffer.id;
+    const replacing = state.governing.staff[staffer.role] && !appointed;
+    const canReplace = state.governing.capital >= (replacing ? 1 : 0);
     return `
       <article class="cr-action-card">
         <span>${html(staffer.role)}</span>
@@ -2213,7 +3042,8 @@
           <p><strong>Loyalty:</strong> ${staffer.loyalty}</p>
           <p><strong>Effects:</strong> ${html(effectText({ effects: staffer.effects || {} }))}</p>
         </div>
-        <button class="cr-btn ${appointed ? "subtle" : "primary"} full" data-appoint-staff="${html(staffer.id)}" ${appointed ? "disabled" : ""} type="button">${appointed ? "Appointed" : "Appoint"}</button>
+        <button class="cr-btn ${appointed || !canReplace ? "subtle" : "primary"} full" data-appoint-staff="${html(staffer.id)}" ${appointed || !canReplace ? "disabled" : ""} type="button">${appointed ? "Appointed" : replacing ? "Replace · 1 capital" : "Appoint"}</button>
+        ${!appointed && !canReplace ? `<p class="cr-disabled-reason">Replacing staff costs 1 political capital.</p>` : ""}
       </article>
     `;
   }
@@ -2221,15 +3051,34 @@
   function appointStaff(id) {
     const staffer = byId(DATA.staff || [], id);
     if (!staffer) return;
+    const previous = state.governing.staff[staffer.role];
+    if (previous && previous !== staffer.id && state.governing.capital < 1) return;
+    if (previous && previous !== staffer.id) {
+      state.governing.capital -= 1;
+      state.governing.trust = clamp(state.governing.trust - 0.5, 0, 100);
+    }
     state.governing.staff[staffer.role] = staffer.id;
-    const effects = staffer.effects || {};
-    if (effects.trust) state.governing.trust = clamp(state.governing.trust + effects.trust, 0, 100);
-    if (effects.capital) state.governing.capital += effects.capital;
-    if (effects.budget) state.governing.budget += effects.budget;
-    if (effects.volunteers) state.campaign.resources.volunteers += effects.volunteers;
-    state.governing.log.unshift(`${staffer.name} appointed as ${staffer.role}.`);
+    state.governing.staffModifiers = calculateStaffModifiers(state.governing);
+    state.governing.log.unshift(`${staffer.name} ${previous ? "replaced the previous appointee" : "was appointed"} as ${staffer.role}. Team modifiers recalculated.`);
     save();
     render();
+  }
+
+  function calculateStaffModifiers(governing = state?.governing) {
+    const modifiers = { trust: 0, capital: 0, budget: 0, legislation: 0, media: 0, policy: 0, administration: 0 };
+    if (!governing) return modifiers;
+    Object.values(governing.staff || {}).forEach((staffId) => {
+      const staffer = byId(DATA.staff || [], staffId);
+      Object.entries(staffer?.effects || {}).forEach(([key, value]) => {
+        if (modifiers[key] == null) modifiers[key] = 0;
+        modifiers[key] += Number(value || 0);
+      });
+      if (staffer?.role?.includes("Legislative")) modifiers.legislation += (staffer.competence - 60) / 20;
+      if (staffer?.role?.includes("Communications")) modifiers.media += (staffer.competence - 60) / 22;
+      if (staffer?.role?.includes("Policy")) modifiers.policy += (staffer.competence - 60) / 22;
+      if (staffer?.role?.includes("Chief")) modifiers.administration += (staffer.competence - 60) / 24;
+    });
+    return modifiers;
   }
 
   function renderPolicyEngine() {
@@ -2250,6 +3099,7 @@
 
   function renderBillCard(bill) {
     const votes = projectedVotes(bill);
+    const disabled = billDisabledReason(bill, votes);
     return `
       <article class="cr-action-card ${bill.status === "passed" ? "passed" : ""}">
         <span>${html(bill.area)}</span>
@@ -2257,10 +3107,16 @@
         <p>${html(bill.summary)}</p>
         <div class="cr-action-preview">
           <p><strong>Cost:</strong> ${bill.cost}</p>
+          <p><strong>Drafting cost:</strong> ${bill.draftCost} now; ${bill.implementationCost} if enacted</p>
           <p><strong>Capital:</strong> ${bill.capital}</p>
-          <p><strong>Projected votes:</strong> ${votes.yes}/${votes.need}</p>
+          <p><strong>Vote count:</strong> ${votes.yes} yes · ${votes.no} no · ${votes.abstain} abstain · ${votes.absent} absent · ${votes.required} needed</p>
+          <p><strong>Status:</strong> ${html(labelize(bill.status))}${bill.lockUntil > state.governing.month ? ` · locked until month ${bill.lockUntil}` : ""}</p>
         </div>
-        <button class="cr-btn primary full" data-pass-bill="${html(bill.id)}" ${bill.status === "passed" || state.governing.budget < bill.cost || state.governing.capital < bill.capital ? "disabled" : ""} type="button">${bill.status === "passed" ? "Passed" : "Pass Bill"}</button>
+        <button class="cr-btn primary full" data-pass-bill="${html(bill.id)}" ${disabled ? "disabled" : ""} type="button">${bill.status === "passed" ? "Passed" : bill.status === "failed" ? "Reconsider Bill" : votes.yes < votes.required ? "Force Floor Vote" : "Bring to Floor"}</button>
+        ${!disabled && votes.yes < votes.required ? `<p class="cr-disabled-reason warn">Warning: projected to fail unless the whip count changes.</p>` : ""}
+        ${bill.status === "failed" ? `<button class="cr-btn subtle full" data-amend-bill="${html(bill.id)}" ${state.governing.capital < 1 ? "disabled" : ""} type="button">Amend / Find Sponsors · 1 capital</button>` : ""}
+        ${disabled ? `<p class="cr-disabled-reason">${html(disabled)}</p>` : ""}
+        ${bill.voteRecord ? `<p class="cr-mini-note"><strong>Last vote:</strong> ${bill.voteRecord.yes}-${bill.voteRecord.no}, ${bill.voteRecord.abstain} abstain, ${bill.voteRecord.absent} absent.</p>` : ""}
       </article>
     `;
   }
@@ -2271,78 +3127,166 @@
     return `
       <div class="cr-result-note gaffe">
         <strong>${html(bill.title)}</strong>
-        <p>${html(bill.ask)}</p>
+        <p>${html(bill.sponsor ? `${bill.sponsor}: ${bill.ask}` : bill.ask)}</p>
       </div>
       <div class="cr-answer-list">
-        <button class="cr-answer" data-oppo-deal="accept" type="button"><span>Deal</span><strong>Accept the trade.</strong><em>-4 budget · +2 business faction support · one player bill gains votes</em></button>
-        <button class="cr-answer" data-oppo-deal="amend" type="button"><span>Quid pro quo</span><strong>Offer a narrower amendment.</strong><em>-2 capital · +1 reform/rural support · lower backlash</em></button>
-        <button class="cr-answer" data-oppo-deal="oppose" type="button"><span>Fight</span><strong>Oppose and make a public case.</strong><em>+1 trust · -1 capital · opposition hardens</em></button>
+        ${(bill.choices || []).map((choice, index) => `<button class="cr-answer" data-oppo-deal="${index}" type="button"><span>Opposition Choice</span><strong>${html(choice.label)}</strong><em>${html(effectText({ effects: choice.effects || {} }))}</em></button>`).join("")}
       </div>
     `;
   }
 
   function projectedVotes(bill) {
-    const need = Math.floor(state.governing.factions.reduce((sum, faction) => sum + faction.seats, 0) / 2) + 1;
+    const chamberSize = state.governing.factions.reduce((sum, faction) => sum + faction.seats, 0);
+    const required = Math.floor(chamberSize / 2) + 1;
     let yes = 0;
+    let no = 0;
+    let abstain = 0;
+    let absent = 0;
     state.governing.factions.forEach((faction) => {
-      let support = faction.support + state.governing.capital * 0.2 - bill.cost * 0.35;
-      if ((faction.asks || []).some((ask) => String(bill.area).toLowerCase().includes(ask.toLowerCase()))) support += 10;
-      if (support >= 50) yes += faction.seats;
+      let support = faction.support + state.governing.capital * 0.15 - bill.cost * 0.32 + (state.governing.staffModifiers?.legislation || 0);
+      if ((faction.asks || []).some((ask) => billMatchesAsk(bill, ask))) support += 12;
+      if (bill.factions?.[faction.id]) support += bill.factions[faction.id] * 2.2;
+      if (bill.amended) support += 4;
+      if (bill.sponsors) support += bill.sponsors;
+      if ((faction.expectations || []).length) support -= 3;
+      const missing = support < 38 ? Math.min(faction.seats, Math.round(faction.seats * 0.2)) : 0;
+      absent += missing;
+      const votingSeats = faction.seats - missing;
+      if (support >= 58) yes += votingSeats;
+      else if (support >= 47) {
+        const half = Math.floor(votingSeats / 2);
+        yes += half;
+        abstain += votingSeats - half;
+      } else {
+        no += votingSeats;
+      }
     });
-    return { yes, need };
+    return { yes, no, abstain, absent, required, passed: yes >= required, chamberSize };
+  }
+
+  function billMatchesAsk(bill, ask) {
+    const haystack = `${bill.area} ${bill.title} ${bill.summary}`.toLowerCase();
+    return haystack.includes(String(ask).toLowerCase()) || String(ask).toLowerCase().includes(String(bill.area || "").toLowerCase());
+  }
+
+  function billDisabledReason(bill, votes = projectedVotes(bill)) {
+    if (bill.status === "passed" || bill.status === "implemented") return "This bill already passed.";
+    if (bill.status === "failed" && !bill.amended) {
+      if (bill.lockUntil > state.governing.month) return `Failed bills are locked until month ${bill.lockUntil}; amend and find sponsors to reopen it sooner.`;
+      return "Failed bills require an amendment or new sponsors before reconsideration.";
+    }
+    if (state.governing.capital < bill.capital) return `Need ${bill.capital} political capital.`;
+    const fiscal = recalculateFiscal(state.governing);
+    const upfront = bill.draftingPaid ? 0 : bill.draftCost;
+    if (fiscal.projectedBalance < upfront) return `Need ${upfront} budget room for drafting.`;
+    return "";
   }
 
   function passBill(id) {
     const bill = byId(state.governing.bills, id);
     if (!bill || bill.status === "passed") return;
+    normalizeBill(bill);
     const votes = projectedVotes(bill);
-    state.governing.budget -= bill.cost;
+    const disabled = billDisabledReason(bill, votes);
+    if (disabled) {
+      announce(disabled);
+      return;
+    }
+    const upfront = bill.draftingPaid ? 0 : bill.draftCost;
+    spendFiscal(upfront);
+    bill.draftingPaid = true;
     state.governing.capital -= bill.capital;
-    if (votes.yes >= votes.need) {
+    bill.voteRecord = { ...votes, month: state.governing.month };
+    if (votes.passed) {
+      spendFiscal(bill.implementationCost);
       bill.status = "passed";
-      state.governing.approval = clamp(state.governing.approval + (bill.effects.approval || 0), 0, 100);
-      Object.entries(bill.effects || {}).forEach(([key, value]) => {
-        if (state.governing.metrics[key] != null) state.governing.metrics[key] = clamp(state.governing.metrics[key] + value, 0, 100);
+      bill.stage = "implemented";
+      applyGoverningEffects(bill.effects || {});
+      Object.entries(bill.factions || {}).forEach(([id, value]) => {
+        const target = faction(id);
+        if (target) target.support = clamp(target.support + Number(value || 0), 0, 100);
       });
-      if (bill.effects.trust) state.governing.trust = clamp(state.governing.trust + bill.effects.trust, 0, 100);
-      state.governing.log.unshift(`${bill.title} passed ${votes.yes}-${votes.need - 1}.`);
+      state.governing.log.unshift(`${bill.title} passed ${votes.yes}-${votes.no}, with ${votes.abstain} abstentions and ${votes.absent} absent.`);
       addLog(`${bill.title} passed.`, "policy");
     } else {
+      bill.status = "failed";
+      bill.lockUntil = state.governing.month + 2;
+      bill.amended = false;
       state.governing.approval = clamp(state.governing.approval - 3, 0, 100);
-      state.governing.log.unshift(`${bill.title} failed with ${votes.yes} projected yes votes. The opposition calls the agenda disorganized.`);
+      state.governing.log.unshift(`${bill.title} failed ${votes.yes}-${votes.no}. Only the drafting cost was spent; reconsideration is locked until month ${bill.lockUntil} unless amended.`);
     }
+    recalculateFiscal(state.governing);
     save();
     render();
   }
 
+  function spendFiscal(amount) {
+    const fiscal = recalculateFiscal(state.governing);
+    const cost = Number(amount || 0);
+    if (cost <= 0) return;
+    fiscal.projectedBalance -= cost;
+    if (fiscal.projectedBalance < 0) {
+      fiscal.debt += Math.abs(fiscal.projectedBalance);
+      fiscal.projectedBalance = 0;
+      state.governing.approval = clamp(state.governing.approval - 1, 0, 100);
+    }
+    state.governing.budget = fiscal.projectedBalance;
+    state.governing.deficit = fiscal.debt;
+  }
+
+  function amendBill(id) {
+    const bill = byId(state.governing.bills, id);
+    if (!bill || state.governing.capital < 1) return;
+    state.governing.capital -= 1;
+    bill.amended = true;
+    bill.sponsors = (bill.sponsors || 0) + 3;
+    bill.lockUntil = Math.min(bill.lockUntil || 0, state.governing.month);
+    bill.history.push(`Month ${state.governing.month}: amended and sponsor count improved.`);
+    state.governing.log.unshift(`${bill.title} was amended after talks with swing members. Projected votes improved.`);
+    save();
+    render();
+  }
+
+  function applyGoverningEffects(effects = {}) {
+    const g = state.governing;
+    if (typeof effects.approval === "number") g.approval = clamp(g.approval + effects.approval, 0, 100);
+    if (typeof effects.trust === "number") g.trust = clamp(g.trust + effects.trust, 0, 100);
+    if (typeof effects.capital === "number") g.capital = Math.max(0, g.capital + effects.capital);
+    const metrics = effects.metrics || effects;
+    Object.entries(metrics || {}).forEach(([key, value]) => {
+      if (key === "groups" || key === "factions") return;
+      if (!effects.metrics && ["approval", "trust", "capital"].includes(key)) return;
+      if (key === "approval") g.approval = clamp(g.approval + Number(value || 0), 0, 100);
+      else if (key === "trust") g.trust = clamp(g.trust + Number(value || 0), 0, 100);
+      else if (key === "capital") g.capital = Math.max(0, g.capital + Number(value || 0));
+      else if (key === "budget") spendFiscal(Math.abs(Math.min(0, Number(value || 0))));
+      else if (g.metrics[key] != null) g.metrics[key] = clamp(g.metrics[key] + Number(value || 0), 0, 100);
+    });
+  }
+
   function handleOppositionDeal(type) {
     const g = state.governing;
-    if (type === "accept") {
-      g.budget -= 4;
-      g.approval += 1;
-      faction("business").support += 8;
-      faction("progressive").support -= 5;
-      g.log.unshift("Accepted an opposition tax-and-permit deal. It bought votes and created progressive backlash.");
-    }
-    if (type === "amend" && g.capital >= 2) {
-      g.capital -= 2;
-      faction("reform").support += 5;
-      faction("rural").support += 4;
-      g.log.unshift("Offered a narrower opposition amendment in exchange for process votes.");
-    }
-    if (type === "oppose") {
-      g.capital -= 1;
-      g.trust += 1;
-      faction("business").support -= 4;
-      g.log.unshift("Opposed the opposition bill publicly. Trust rose, but cross-party votes got harder.");
-    }
+    const bill = g.oppositionBill;
+    const choice = bill?.choices?.[Number(type)];
+    if (!choice) return;
+    applyGoverningEffects(choice.effects || {});
+    Object.entries(choice.effects?.factions || {}).forEach(([id, value]) => {
+      const target = faction(id);
+      if (target) target.support = clamp(target.support + Number(value || 0), 0, 100);
+    });
+    Object.entries(choice.effects?.groups || {}).forEach(([groupId, value]) => {
+      const group = state.campaign?.groups?.[groupId];
+      if (group) group.support = clamp(group.support + Number(value || 0), 4, 96);
+    });
+    g.log.unshift(`Opposition bill response: ${choice.label}`);
     g.oppositionBill.status = "resolved";
+    recalculateFiscal(g);
     save();
     render();
   }
 
   function faction(id) {
-    return state.governing.factions.find((item) => item.id === id) || state.governing.factions[0];
+    return state.governing.factions.find((item) => item.id === id) || null;
   }
 
   function renderLegislature() {
@@ -2356,7 +3300,9 @@
             <h4>${html(faction.name)}</h4>
             ${meter("Support", faction.support, 100)}
             <div class="cr-chip-row">${faction.asks.map((ask) => `<span>${html(ask)}</span>`).join("")}</div>
-            <button class="cr-btn subtle full" data-meet-faction="${html(faction.id)}" ${state.governing.capital < 1 ? "disabled" : ""} type="button">Meet Leader · 1 capital</button>
+            ${(faction.expectations || []).length ? `<p class="cr-mini-note"><strong>Expectation:</strong> ${html(faction.expectations[0])}</p>` : ""}
+            <button class="cr-btn subtle full" data-meet-faction="${html(faction.id)}" ${state.governing.capital < 1 || state.governing.monthlyActions?.outreach ? "disabled" : ""} type="button">Meet Leader · 1 capital · monthly outreach</button>
+            ${state.governing.monthlyActions?.outreach ? `<p class="cr-disabled-reason">Faction outreach already used this month.</p>` : ""}
           </article>
         `).join("")}</div>
       </section>
@@ -2364,39 +3310,48 @@
   }
 
   function meetFaction(id) {
-    if (state.governing.capital < 1) return;
+    if (state.governing.capital < 1 || state.governing.monthlyActions?.outreach) return;
     const target = faction(id);
+    if (!target) return;
     state.governing.capital -= 1;
     target.support = clamp(target.support + 6, 0, 100);
-    state.governing.log.unshift(`Met with ${target.name}. Support improved, but the capital is spent.`);
+    target.expectations = target.expectations || [];
+    target.expectations.unshift(`Wants visible movement on ${target.asks?.[0] || "its priority"} by next month.`);
+    target.expectations = target.expectations.slice(0, 2);
+    state.governing.monthlyActions.outreach = true;
+    state.governing.factions.forEach((other) => {
+      if (other.id !== target.id && Math.random() < 0.25) other.support = clamp(other.support - 1, 0, 100);
+    });
+    state.governing.log.unshift(`Met with ${target.name}. Support improved, but they now expect movement on ${target.asks?.[0] || "their priority"}.`);
     save();
     render();
   }
 
   function renderBudget() {
     const g = state.governing;
-    const total = Object.values(g.budgetLines).reduce((sum, value) => sum + value, 0);
+    const fiscal = recalculateFiscal(g);
     return `
       <section class="cr-grid two">
         <article class="cr-panel cr-budget-panel">
           <h2>Budget Position</h2>
-          <strong class="cr-budget-number">${Math.round(g.budget)}</strong>
-          <p>Available budget · deficit ${Math.round(g.deficit)} · monthly difficulty pressure x${difficulty().budget.toFixed(2)}</p>
-          <p>Overspending raises the deficit and creates future attacks. Underspending leaves services weak and approval brittle.</p>
-          ${Object.entries(g.budgetLines).map(([key, value]) => `
+          <strong class="cr-budget-number">${Math.round(fiscal.projectedBalance)}</strong>
+          <p>Projected balance · revenue ${Math.round(fiscal.revenue)} · mandatory ${Math.round(fiscal.mandatorySpending)} · discretionary ${Math.round(fiscal.discretionarySpending)} · debt ${Math.round(fiscal.debt)}</p>
+          <p>Budget changes use applied deltas. Overspending creates debt; underspending can weaken services and brittle approval.</p>
+          ${Object.entries(fiscal.allocations).map(([key, value]) => `
             <div class="cr-budget-line">
               <strong>${html(labelize(key))}</strong>
               <span>${value}</span>
               <button data-budget-adjust="${html(key)}:-2" type="button">-</button>
-              <button data-budget-adjust="${html(key)}:2" type="button">+</button>
+              <button data-budget-adjust="${html(key)}:2" ${fiscal.projectedBalance < 2 ? "disabled" : ""} type="button">+</button>
             </div>
           `).join("")}
         </article>
         <aside class="cr-panel">
           <h2>Budget Shape</h2>
-          ${meter("Spending Load", total, 120)}
-          ${meter("Service Quality", (g.metrics.education + g.metrics.housing + g.metrics.safety + g.metrics.services) / 4, 100)}
-          ${meter("Fiscal Stress", Math.max(0, g.deficit + (total - 100)), 80)}
+          ${meter("Revenue", fiscal.revenue, Math.max(1, fiscal.revenue))}
+          ${meter("Discretionary Spending", fiscal.discretionarySpending, Math.max(1, fiscal.revenue))}
+          ${meter("Reserves", fiscal.reserves, 30)}
+          ${meter("Fiscal Stress", Math.max(0, fiscal.debt + Math.max(0, -fiscal.projectedBalance)), 80)}
         </aside>
       </section>
     `;
@@ -2404,11 +3359,34 @@
 
   function adjustBudget(key, delta) {
     const g = state.governing;
-    g.budgetLines[key] = clamp((g.budgetLines[key] || 0) + Number(delta), 0, 70);
-    g.budget -= Number(delta);
-    if (key === "education") g.metrics.education = clamp(g.metrics.education + Number(delta) * 0.45, 0, 100);
-    if (key === "housing") g.metrics.housing = clamp(g.metrics.housing + Number(delta) * 0.45, 0, 100);
-    if (key === "safety") g.metrics.safety = clamp(g.metrics.safety + Number(delta) * 0.45, 0, 100);
+    const fiscal = recalculateFiscal(g);
+    const previous = Number(fiscal.allocations[key] || 0);
+    const next = clamp(previous + Number(delta), 0, 70);
+    const appliedDelta = next - previous;
+    if (appliedDelta > 0 && fiscal.projectedBalance < appliedDelta) {
+      announce("Not enough projected balance for that budget increase.");
+      return;
+    }
+    fiscal.allocations[key] = next;
+    recalculateFiscal(g);
+    if (currentOffice().id === "schoolBoard") {
+      const metricMap = {
+        instruction: "studentAchievement",
+        teacherPay: "teacherRetention",
+        studentSupport: "attendance",
+        transportation: "transportation",
+        facilities: "facilityCondition",
+        safety: "safety",
+        administration: "parentTrust"
+      };
+      const metricKey = metricMap[key];
+      if (metricKey && g.metrics[metricKey] != null) g.metrics[metricKey] = clamp(g.metrics[metricKey] + appliedDelta * 0.35, 0, 100);
+    } else {
+      if (key === "education") g.metrics.education = clamp(g.metrics.education + appliedDelta * 0.45, 0, 100);
+      if (key === "housing") g.metrics.housing = clamp(g.metrics.housing + appliedDelta * 0.45, 0, 100);
+      if (key === "safety") g.metrics.safety = clamp(g.metrics.safety + appliedDelta * 0.45, 0, 100);
+    }
+    g.log.unshift(`${labelize(key)} budget changed by ${signed(appliedDelta)}. Projected balance is now ${Math.round(g.fiscal.projectedBalance)}.`);
     save();
     render();
   }
@@ -2437,6 +3415,7 @@
 
   function adminAction(type) {
     const g = state.governing;
+    if (g.monthlyActions?.administration) return;
     if (type === "focus") {
       g.capital += 2;
       g.trust += 1;
@@ -2451,11 +3430,13 @@
     if (type === "push") {
       g.approval += 2;
       g.capital -= 2;
-      g.budget -= 4;
+      spendFiscal(4);
       g.log.unshift("Several promises moved at once. The headline was good; the internal cost was real.");
     }
+    g.monthlyActions.administration = true;
     g.approval = clamp(g.approval, 0, 100);
     g.trust = clamp(g.trust, 0, 100);
+    recalculateFiscal(g);
     save();
     render();
   }
@@ -2467,20 +3448,26 @@
       return;
     }
     g.month += 1;
-    const spending = Object.values(g.budgetLines).reduce((sum, value) => sum + value, 0);
-    const pressure = Math.round((spending - 90) * 0.12 * difficulty().budget);
-    g.budget -= Math.max(0, pressure);
-    if (g.budget < 0) {
-      g.deficit += Math.abs(g.budget);
-      g.budget = 0;
+    g.monthlyActions = { administration: false, outreach: false };
+    const fiscal = recalculateFiscal(g);
+    const pressure = Math.max(0, Math.round((-fiscal.projectedBalance + fiscal.debtService) * 0.18 * difficulty().budget));
+    if (pressure > 0) {
+      fiscal.debt += pressure;
       g.approval -= 2;
     }
-    g.capital += 2;
-    g.approval = clamp(g.approval + (g.trust - 55) * 0.02 - g.deficit * 0.015, 5, 95);
+    g.capital += 2 + Math.max(0, Math.round((g.staffModifiers?.administration || 0) * 0.3));
+    g.factions.forEach((fac) => {
+      if ((fac.expectations || []).length) {
+        fac.support = clamp(fac.support - 2, 0, 100);
+        fac.expectations = fac.expectations.slice(0, 1);
+      }
+    });
+    g.approval = clamp(g.approval + (g.trust - 55) * 0.02 - (fiscal.debt || 0) * 0.015, 5, 95);
     if (Math.random() < 0.38 * difficulty().opposition && (!g.oppositionBill || g.oppositionBill.status !== "pending")) {
       g.oppositionBill = makeOppositionOffer();
       g.log.unshift(`Opposition introduced ${g.oppositionBill.title}.`);
     }
+    recalculateFiscal(g);
     g.log.unshift(`Month ${g.month} begins. Budget pressure, faction support, and reelection memory updated.`);
     save();
     render();
@@ -2507,6 +3494,7 @@
 
   function renderTermReview() {
     const review = state.termReview;
+    const higherScenario = nextHigherScenario();
     root.innerHTML = `
       <section class="cr-game">
         ${renderRibbon()}
@@ -2530,9 +3518,10 @@
               <p>You can run for reelection, run for a higher office, or accept an appointed government role if you want to keep governing without a campaign.</p>
               <div class="cr-action-stack">
                 <button data-career-next="reelection" type="button">Run for Reelection</button>
-                <button data-career-next="higher" type="button">Run for Higher Office</button>
+                <button data-career-next="higher" ${higherScenario ? "" : "disabled"} type="button">Run for Higher Office</button>
                 <button data-career-next="appointment" type="button">Accept Government Appointment</button>
               </div>
+              ${higherScenario ? `<p class="cr-mini-note">Available higher race: ${html(higherScenario.name)}.</p>` : `<p class="cr-disabled-reason">No higher-office scenario installed. Add one to <code>games/civic/data/scenarios.js</code> to continue climbing.</p>`}
             </article>
           </div>
         </section>
@@ -2550,7 +3539,13 @@
   function launchNextCampaign(type) {
     const current = currentOffice();
     const nextOffice = type === "higher" ? nextOfficeFrom(current) : current;
-    const nextScenario = scenarioForOffice(nextOffice.id) || getScenario(state.scenarioId);
+    const nextScenario = type === "higher" ? nextHigherScenario() : scenarioForOffice(nextOffice.id);
+    if (!nextScenario) {
+      state.careerNotice = "No higher-office scenario installed.";
+      announce(state.careerNotice);
+      render();
+      return;
+    }
     state.phase = "briefing";
     state.view = "warRoom";
     state.scenarioId = nextScenario.id;
@@ -2571,7 +3566,16 @@
   }
 
   function scenarioForOffice(officeId) {
-    return allScenarios().find((scenario) => scenario.officeId === officeId) || (officeId === "stateHouse" ? getScenario("stateHouseSwingDistrict") : null);
+    return allScenarios().find((scenario) => scenario.officeId === officeId) || null;
+  }
+
+  function nextHigherScenario() {
+    const current = currentOffice();
+    const ladder = OFFICE_LADDER.filter((item) => !String(item.id).startsWith("appointed")).sort((a, b) => a.tier - b.tier);
+    const currentTier = current?.tier || 0;
+    const scenarioIds = new Set(allScenarios().map((scenario) => scenario.officeId));
+    const next = ladder.find((item) => item.tier > currentTier && scenarioIds.has(item.id));
+    return next ? scenarioForOffice(next.id) : null;
   }
 
   function acceptAppointment() {
@@ -2609,8 +3613,12 @@
         render();
       });
     });
-    document.querySelectorAll("[data-do-action]").forEach((button) => button.addEventListener("click", () => doAction(button.dataset.doAction)));
+    document.querySelectorAll("[data-schedule-action]").forEach((button) => button.addEventListener("click", () => scheduleAction(button.dataset.scheduleAction)));
+    document.querySelector("[data-resolve-schedule]")?.addEventListener("click", resolveSchedule);
+    document.querySelector("[data-clear-schedule]")?.addEventListener("click", clearSchedule);
+    document.querySelectorAll("[data-unschedule]").forEach((button) => button.addEventListener("click", () => unscheduleAction(button.dataset.unschedule)));
     document.querySelectorAll("[data-event-choice]").forEach((button) => button.addEventListener("click", () => answerEvent(Number(button.dataset.eventChoice))));
+    document.querySelector("[data-skip-weekly-question]")?.addEventListener("click", skipWeeklyQuestion);
     document.querySelectorAll("[data-message-stance]").forEach((button) => button.addEventListener("click", () => runMessageAd(button.dataset.messageStance)));
     document.querySelector("[data-internal-poll]")?.addEventListener("click", conductInternalPoll);
     document.querySelectorAll("[data-voter-group]").forEach((button) => button.addEventListener("click", () => {
@@ -2621,6 +3629,7 @@
     document.querySelectorAll("[data-begin-focus]").forEach((button) => button.addEventListener("click", () => beginFocus(button.dataset.beginFocus)));
     document.querySelectorAll("[data-focus-choice]").forEach((button) => button.addEventListener("click", () => chooseFocusFinal(Number(button.dataset.focusChoice))));
     document.querySelector("[data-start-debate]")?.addEventListener("click", startDebate);
+    document.querySelector("[data-decline-debate]")?.addEventListener("click", declineDebate);
     document.querySelectorAll("[data-debate-choice]").forEach((button) => button.addEventListener("click", () => answerDebate(Number(button.dataset.debateChoice))));
     document.querySelector("[data-advance-week]")?.addEventListener("click", advanceWeek);
   }
@@ -2637,6 +3646,7 @@
     document.querySelector("[data-advance-month]")?.addEventListener("click", advanceMonth);
     document.querySelectorAll("[data-appoint-staff]").forEach((button) => button.addEventListener("click", () => appointStaff(button.dataset.appointStaff)));
     document.querySelectorAll("[data-pass-bill]").forEach((button) => button.addEventListener("click", () => passBill(button.dataset.passBill)));
+    document.querySelectorAll("[data-amend-bill]").forEach((button) => button.addEventListener("click", () => amendBill(button.dataset.amendBill)));
     document.querySelectorAll("[data-oppo-deal]").forEach((button) => button.addEventListener("click", () => handleOppositionDeal(button.dataset.oppoDeal)));
     document.querySelectorAll("[data-meet-faction]").forEach((button) => button.addEventListener("click", () => meetFaction(button.dataset.meetFaction)));
     document.querySelectorAll("[data-budget-adjust]").forEach((button) => button.addEventListener("click", () => {
@@ -2663,7 +3673,7 @@
   function electionStructureLabel(id) {
     return {
       nonpartisanGeneral: "Nonpartisan local ballot",
-      primaryAndGeneral: "Primary and general election",
+      primaryAndGeneral: "State House general election",
       safeSeatPrimary: "Safe-seat primary",
       statewideCycle: "Statewide cycle",
       presidentialCycle: "Presidential cycle"
